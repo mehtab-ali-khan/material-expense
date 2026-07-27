@@ -1,17 +1,31 @@
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
 
 from .models import Company, CompanyToken
 from .serializers import CompanySignupSerializer, CompanyLoginSerializer
 
+from .models import Item, Salesman, ItemVariant, Purchase
+from .serializers import (
+    CompanySignupSerializer,
+    CompanyLoginSerializer,
+    ItemSerializer,
+    SalesmanSerializer,
+    ItemVariantSerializer,
+    PurchaseSerializer,
+)
+
 
 class SignupView(generics.CreateAPIView):
+    permission_classes = [AllowAny]
     queryset = Company.objects.all()
     serializer_class = CompanySignupSerializer
 
 
 class LoginView(APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request):
         serializer = CompanyLoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -36,3 +50,45 @@ class LoginView(APIView):
         token, _ = CompanyToken.objects.get_or_create(company=company)
 
         return Response({"token": token.key, "company_name": company.name})
+
+
+class ItemListCreateView(generics.ListCreateAPIView):
+    serializer_class = ItemSerializer
+
+    def get_queryset(self):
+        return Item.objects.filter(company=self.request.user).order_by("name")
+
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user)
+
+
+class SalesmanListCreateView(generics.ListCreateAPIView):
+    serializer_class = SalesmanSerializer
+
+    def get_queryset(self):
+        return Salesman.objects.filter(company=self.request.user).order_by("name")
+
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user)
+
+
+class ItemVariantListView(generics.ListAPIView):
+    """Returns variants for a given item, used to populate the sale page dropdowns."""
+
+    serializer_class = ItemVariantSerializer
+
+    def get_queryset(self):
+        item_id = self.request.query_params.get("item")
+        qs = ItemVariant.objects.filter(item__company=self.request.user)
+        if item_id:
+            qs = qs.filter(item_id=item_id)
+        return qs.order_by("length", "measurement")
+
+
+class PurchaseListCreateView(generics.ListCreateAPIView):
+    serializer_class = PurchaseSerializer
+
+    def get_queryset(self):
+        return Purchase.objects.filter(
+            variant__item__company=self.request.user
+        ).order_by("-date")
