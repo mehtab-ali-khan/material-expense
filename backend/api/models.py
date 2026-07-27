@@ -116,3 +116,55 @@ class ItemVariant(models.Model):
             raise ValidationError("Cannot sell more than available stock.")
         self.current_stock_qty -= quantity
         self.save()
+
+
+class Purchase(models.Model):
+    variant = models.ForeignKey(
+        ItemVariant, on_delete=models.CASCADE, related_name="purchases"
+    )
+    salesman = models.ForeignKey(
+        Salesman, on_delete=models.SET_NULL, null=True, related_name="purchases"
+    )
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    price = models.DecimalField(max_digits=12, decimal_places=2)
+    date = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Purchase: {self.variant} x {self.quantity} @ {self.price}"
+
+    @transaction.atomic
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding
+        super().save(*args, **kwargs)
+        if is_new:
+            self.variant.record_purchase(self.quantity, self.price)
+
+
+class Sale(models.Model):
+    variant = models.ForeignKey(
+        ItemVariant, on_delete=models.CASCADE, related_name="sales"
+    )
+    salesman = models.ForeignKey(
+        Salesman, on_delete=models.SET_NULL, null=True, related_name="sales"
+    )
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    sale_price = models.DecimalField(max_digits=12, decimal_places=2)
+    purchase_price_snapshot = models.DecimalField(max_digits=12, decimal_places=2)
+    date = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Sale: {self.variant} x {self.quantity} @ {self.sale_price}"
+
+    @property
+    def profit(self):
+        return (self.sale_price - self.purchase_price_snapshot) * self.quantity
+
+    @transaction.atomic
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding
+        if is_new:
+            self.purchase_price_snapshot = self.variant.avg_purchase_price
+            self.variant.record_sale(self.quantity)
+        super().save(*args, **kwargs)
