@@ -82,7 +82,7 @@ function SearchableDropdown({
                 borderRadius="lg"
             />
 
-            {isOpen && (value || '').length > 0 && (
+            {isOpen && (filtered.length > 0 || (value || '').trim().length > 0) && (
                 <Box
                     position="absolute"
                     top="calc(100% + 4px)"

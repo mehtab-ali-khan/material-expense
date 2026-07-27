@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import PurchasePage from './pages/PurchasePage'
+import SalePage from './pages/SalePage'
 
 function PrivateRoute({ children }) {
   const { isAuthenticated } = useAuth()
@@ -19,6 +20,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <PurchasePage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/sale"
+        element={
+          <PrivateRoute>
+            <SalePage />
           </PrivateRoute>
         }
       />
