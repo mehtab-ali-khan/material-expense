@@ -1,7 +1,9 @@
 import secrets
 
 from django.db import models
+from django.db import transaction
 from django.contrib.auth.hashers import make_password, check_password
+from django.core.exceptions import ValidationError
 
 
 class Company(models.Model):
@@ -34,3 +36,83 @@ class CompanyToken(models.Model):
         if not self.key:
             self.key = secrets.token_hex(32)
         super().save(*args, **kwargs)
+
+
+class Item(models.Model):
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="items")
+    name = models.CharField(max_length=255)
+
+    class Meta:
+        unique_together = ("company", "name")
+
+    def save(self, *args, **kwargs):
+        self.name = self.name.strip()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
+class Salesman(models.Model):
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE, related_name="salesmen"
+    )
+    name = models.CharField(max_length=255)
+
+    class Meta:
+        unique_together = ("company", "name")
+
+    def save(self, *args, **kwargs):
+        self.name = self.name.strip()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
+class ItemVariant(models.Model):
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name="variants")
+    length = models.CharField(max_length=100)
+    measurement = models.CharField(max_length=100)
+
+    current_stock_qty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    avg_purchase_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_purchased_qty = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0
+    )
+    total_purchased_value = models.DecimalField(
+        max_digits=14, decimal_places=2, default=0
+    )
+
+    class Meta:
+        unique_together = ("item", "length", "measurement")
+
+    def save(self, *args, **kwargs):
+        self.length = self.length.strip()
+        self.measurement = self.measurement.strip()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.item.name} ({self.length}, {self.measurement})"
+
+    def record_purchase(self, quantity, price):
+        """
+        Add a purchase to this variant: update stock and recalculate
+        the weighted-average purchase price.
+        """
+        self.total_purchased_qty += quantity
+        self.total_purchased_value += quantity * price
+        self.avg_purchase_price = self.total_purchased_value / self.total_purchased_qty
+        self.current_stock_qty += quantity
+        self.save()
+
+    def record_sale(self, quantity):
+        """
+        Deduct a sale from stock. Raises ValidationError if insufficient stock.
+        Caller is responsible for wrapping this with the Sale creation
+        in a transaction.
+        """
+        if quantity > self.current_stock_qty:
+            raise ValidationError("Cannot sell more than available stock.")
+        self.current_stock_qty -= quantity
+        self.save()
