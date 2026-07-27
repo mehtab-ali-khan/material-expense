@@ -88,6 +88,12 @@ DATABASES = {
     }
 }
 
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "api.authentication.CompanyTokenAuthentication",
+    ],
+}
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
