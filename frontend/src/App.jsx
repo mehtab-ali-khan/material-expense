@@ -5,6 +5,7 @@ import SignupPage from './pages/SignupPage'
 import PurchasePage from './pages/PurchasePage'
 import SalePage from './pages/SalePage'
 import StockPage from './pages/StockPage'
+import ProfitPage from './pages/ProfitPage'
 
 function PrivateRoute({ children }) {
   const { isAuthenticated } = useAuth()
@@ -37,6 +38,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <StockPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/profit"
+        element={
+          <PrivateRoute>
+            <ProfitPage />
           </PrivateRoute>
         }
       />

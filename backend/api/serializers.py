@@ -109,7 +109,10 @@ class SaleSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(source="variant.item.name", read_only=True)
     length = serializers.CharField(source="variant.length", read_only=True)
     measurement = serializers.CharField(source="variant.measurement", read_only=True)
-    salesman_name = serializers.CharField(write_only=True)
+
+    salesman_name = serializers.CharField(write_only=True)  # input: user-typed text
+    salesman_display = serializers.CharField(source="salesman.name", read_only=True)
+
     profit = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
     class Meta:
@@ -121,6 +124,7 @@ class SaleSerializer(serializers.ModelSerializer):
             "length",
             "measurement",
             "salesman_name",
+            "salesman_display",
             "quantity",
             "sale_price",
             "purchase_price_snapshot",
@@ -134,7 +138,6 @@ class SaleSerializer(serializers.ModelSerializer):
         company = self.context["request"].user
         variant = validated_data["variant"]
 
-        # ensure the variant actually belongs to this company (tenant isolation)
         if variant.item.company_id != company.id:
             raise DRFValidationError("Invalid variant.")
 
