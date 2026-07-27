@@ -3,10 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 
-from .models import Company, CompanyToken
-from .serializers import CompanySignupSerializer, CompanyLoginSerializer
-
-from .models import Item, Salesman, ItemVariant, Purchase
+from .models import Company, CompanyToken, Item, Salesman, ItemVariant, Purchase, Sale
 from .serializers import (
     CompanySignupSerializer,
     CompanyLoginSerializer,
@@ -14,6 +11,7 @@ from .serializers import (
     SalesmanSerializer,
     ItemVariantSerializer,
     PurchaseSerializer,
+    SaleSerializer,
 )
 
 
@@ -92,3 +90,12 @@ class PurchaseListCreateView(generics.ListCreateAPIView):
         return Purchase.objects.filter(
             variant__item__company=self.request.user
         ).order_by("-date")
+
+
+class SaleListCreateView(generics.ListCreateAPIView):
+    serializer_class = SaleSerializer
+
+    def get_queryset(self):
+        return Sale.objects.filter(variant__item__company=self.request.user).order_by(
+            "-date"
+        )
