@@ -1,10 +1,29 @@
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: core
+      POSTGRES_USER: core_user
+      POSTGRES_PASSWORD: core_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
   backend:
     build: ./backend
     volumes:
       - ./backend:/app
     ports:
       - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      DB_NAME: core
+      DB_USER: core_user
+      DB_PASSWORD: core_password
+      DB_HOST: db
+      DB_PORT: 5432
 
   frontend:
     build: ./frontend
@@ -15,3 +34,6 @@ services:
       - "5173:5173"
     depends_on:
       - backend
+
+volumes:
+  postgres_data:
