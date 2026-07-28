@@ -58,6 +58,13 @@ class PurchaseSerializer(serializers.ModelSerializer):
     measurement = serializers.CharField(write_only=True)
     salesman_name = serializers.CharField(write_only=True)
 
+    item_display = serializers.CharField(source="variant.item.name", read_only=True)
+    length_display = serializers.CharField(source="variant.length", read_only=True)
+    measurement_display = serializers.CharField(
+        source="variant.measurement", read_only=True
+    )
+    salesman_display = serializers.CharField(source="salesman.name", read_only=True)
+
     class Meta:
         model = Purchase
         fields = [
@@ -66,6 +73,10 @@ class PurchaseSerializer(serializers.ModelSerializer):
             "length",
             "measurement",
             "salesman_name",
+            "item_display",
+            "length_display",
+            "measurement_display",
+            "salesman_display",
             "quantity",
             "price",
             "date",

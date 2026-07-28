@@ -96,7 +96,7 @@ function ProfitPage() {
                                 <Box key={s.id} px={4} py={3} borderBottom="1px solid" borderColor="gray.100">
                                     <Box display="flex" justifyContent="space-between" alignItems="start">
                                         <Box>
-                                            <Text fontWeight="semibold" color="black">{s.item_name}</Text>
+                                            <Text color="black">{s.item_name}</Text>
                                             <Text fontSize="sm" color="gray.500">
                                                 {s.length} · {s.measurement}
                                             </Text>
