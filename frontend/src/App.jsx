@@ -12,43 +12,20 @@ function PrivateRoute({ children }) {
   return isAuthenticated ? children : <Navigate to="/login" />
 }
 
+function PublicRoute({ children }) {
+  const { isAuthenticated } = useAuth()
+  return isAuthenticated ? <Navigate to="/purchase" /> : children
+}
+
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/signup" element={<SignupPage />} />
-      <Route
-        path="/purchase"
-        element={
-          <PrivateRoute>
-            <PurchasePage />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/sale"
-        element={
-          <PrivateRoute>
-            <SalePage />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/stock"
-        element={
-          <PrivateRoute>
-            <StockPage />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/profit"
-        element={
-          <PrivateRoute>
-            <ProfitPage />
-          </PrivateRoute>
-        }
-      />
+      <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+      <Route path="/signup" element={<PublicRoute><SignupPage /></PublicRoute>} />
+      <Route path="/purchase" element={<PrivateRoute><PurchasePage /></PrivateRoute>} />
+      <Route path="/sale" element={<PrivateRoute><SalePage /></PrivateRoute>} />
+      <Route path="/stock" element={<PrivateRoute><StockPage /></PrivateRoute>} />
+      <Route path="/profit" element={<PrivateRoute><ProfitPage /></PrivateRoute>} />
       <Route path="*" element={<Navigate to="/login" />} />
     </Routes>
   )
