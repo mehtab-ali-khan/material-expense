@@ -5,6 +5,7 @@ import { getSalesmen } from '../api/salesmen'
 import { getVariants } from '../api/variants'
 import { createSale } from '../api/sales'
 import SearchableDropdown from '../components/SearchableDropdown'
+import SelectDropdown from '../components/SelectDropdown'
 import AppLayout from '../components/AppLayout'
 
 const fieldInputStyles = {
@@ -24,8 +25,9 @@ function SalePage() {
     const [salesmen, setSalesmen] = useState([])
     const [variants, setVariants] = useState([]) // all variants for the selected item
 
-    const [itemText, setItemText] = useState('')
     const [selectedItem, setSelectedItem] = useState(null)
+    const [selectedLength, setSelectedLength] = useState(null)
+    const [selectedMeasurement, setSelectedMeasurement] = useState(null)
     const [selectedVariant, setSelectedVariant] = useState(null)
 
     const [salesmanName, setSalesmanName] = useState('')
@@ -48,34 +50,38 @@ function SalePage() {
     }
 
     const handleItemSelect = async (opt) => {
-        setItemText(opt.name)
         setSelectedItem(opt)
+        setSelectedLength(null)
+        setSelectedMeasurement(null)
         setSelectedVariant(null)
         const res = await getVariants(opt.id)
         setVariants(res.data)
     }
 
-    const handleItemTextChange = (val) => {
-        setItemText(val)
-        setSelectedItem(null)
+    // Length options: unique lengths available for the selected item
+    const lengthOptions = [...new Set(variants.map((v) => v.length))].map((l, i) => ({ id: i, name: l }))
+
+    const handleLengthSelect = (opt) => {
+        setSelectedLength(opt.name)
+        setSelectedMeasurement(null)
         setSelectedVariant(null)
-        setVariants([])
     }
 
-    // Options for the variant dropdown, labeled clearly for the user to pick from
-    const variantOptions = variants.map((v) => ({
-        id: v.id,
-        name: `${v.length} · ${v.measurement} — stock: ${v.current_stock_qty}`,
-    }))
+    // Measurement options: unique measurements available for selected item + length
+    const measurementOptions = [...new Set(
+        variants.filter((v) => v.length === selectedLength).map((v) => v.measurement)
+    )].map((m, i) => ({ id: i, name: m }))
 
-    const handleVariantSelect = (opt) => {
-        const variant = variants.find((v) => v.id === opt.id)
-        setSelectedVariant(variant)
+    const handleMeasurementSelect = (opt) => {
+        setSelectedMeasurement(opt.name)
+        const variant = variants.find((v) => v.length === selectedLength && v.measurement === opt.name)
+        setSelectedVariant(variant || null)
     }
 
     const resetForm = () => {
-        setItemText('')
         setSelectedItem(null)
+        setSelectedLength(null)
+        setSelectedMeasurement(null)
         setSelectedVariant(null)
         setVariants([])
         setSalesmanName('')
@@ -90,7 +96,7 @@ function SalePage() {
         setSuccess('')
 
         if (!selectedVariant || !salesmanName || !quantity || !salePrice || !date) {
-            setError('Please select an item variant and fill in all fields.')
+            setError('Please select item, length, measurement, and fill in all fields.')
             return
         }
 
@@ -128,31 +134,37 @@ function SalePage() {
                 <form onSubmit={handleSubmit}>
                     <VStack gap={4} align="stretch">
                         <Field label="Item Name">
-                            <SearchableDropdown
+                            <SelectDropdown
                                 options={items}
-                                value={itemText}
-                                onChange={handleItemTextChange}
+                                value={selectedItem?.name || ''}
                                 onSelect={handleItemSelect}
-                                onCreate={() => { }} // sale page: items must already exist, no create
-                                placeholder="Search item to sell"
+                                placeholder="Choose item to sell"
                             />
                         </Field>
 
-                        {selectedItem && (
-                            <Field label="Variant (length · measurement)">
-                                {variantOptions.length > 0 ? (
-                                    <SearchableDropdown
-                                        options={variantOptions}
-                                        value={selectedVariant ? variantOptions.find((o) => o.id === selectedVariant.id)?.name : ''}
-                                        onChange={() => { }}
-                                        onSelect={handleVariantSelect}
-                                        onCreate={() => { }} // variants can't be created from sale page
-                                        placeholder="Select length/measurement"
-                                    />
-                                ) : (
-                                    <Text fontSize="sm" color="gray.500">No stock available for this item.</Text>
-                                )}
+                        <SimpleGrid columns={2} gap={4}>
+                            <Field label="Length">
+                                <SelectDropdown
+                                    options={lengthOptions}
+                                    value={selectedLength || ''}
+                                    onSelect={handleLengthSelect}
+                                    placeholder="Choose length"
+                                    disabled={!selectedItem}
+                                />
                             </Field>
+                            <Field label="Measurement">
+                                <SelectDropdown
+                                    options={measurementOptions}
+                                    value={selectedMeasurement || ''}
+                                    onSelect={handleMeasurementSelect}
+                                    placeholder="Choose measurement"
+                                    disabled={!selectedLength}
+                                />
+                            </Field>
+                        </SimpleGrid>
+
+                        {selectedItem && variants.length === 0 && (
+                            <Text fontSize="sm" color="gray.500">No stock available for this item.</Text>
                         )}
 
                         {selectedVariant && (
