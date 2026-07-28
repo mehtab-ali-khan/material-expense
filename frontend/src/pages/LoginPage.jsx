@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { Box, Button, Input, Stack, Text, Link as ChakraLink, Field } from '@chakra-ui/react'
+import { Button, Input, Stack, Text, Link as ChakraLink, Field } from '@chakra-ui/react'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
 import { login } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
 import AuthLayout from '../components/AuthLayout'
+import { ArrowUpRightIcon } from '../components/Icons'
+import FormMessage from '../components/FormMessage'
 
 const inputStyles = {
     bg: 'white',
@@ -13,8 +15,9 @@ const inputStyles = {
     _placeholder: { color: 'gray.400' },
     _hover: { borderColor: 'gray.400' },
     _focus: { borderColor: 'black', boxShadow: '0 0 0 1px black' },
-    size: 'lg',
-    borderRadius: 'full',
+    borderRadius: 'xl',
+    minH: '54px',
+    fontSize: '16px',
 }
 
 function LoginPage() {
@@ -34,7 +37,7 @@ function LoginPage() {
             const res = await login(name, password)
             loginSuccess(res.data.token, res.data.company_name)
             navigate('/purchase')
-        } catch (err) {
+        } catch {
             setError('Invalid company name or password.')
         } finally {
             setLoading(false)
@@ -42,7 +45,7 @@ function LoginPage() {
     }
 
     return (
-        <AuthLayout title="Welcome back" subtitle="Log in to manage your inventory">
+        <AuthLayout title="Login" subtitle="Manage purchases, sales, stock and profit.">
             <form onSubmit={handleSubmit}>
                 <Stack gap={4}>
                     <Field.Root>
@@ -50,6 +53,8 @@ function LoginPage() {
                             placeholder="Company name"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
+                            autoComplete="organization"
+                            enterKeyHint="next"
                             required
                             {...inputStyles}
                         />
@@ -60,35 +65,35 @@ function LoginPage() {
                             placeholder="Password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
+                            autoComplete="current-password"
+                            enterKeyHint="done"
                             required
                             {...inputStyles}
                         />
                     </Field.Root>
 
                     {error && (
-                        <Box bg="red.50" border="1px solid" borderColor="red.200" borderRadius="lg" px={3} py={2}>
-                            <Text color="red.600" fontSize="sm">{error}</Text>
-                        </Box>
+                        <FormMessage tone="error">{error}</FormMessage>
                     )}
 
                     <Button
                         type="submit"
                         loading={loading}
                         w="full"
-                        size="lg"
-                        borderRadius="full"
+                        minH="54px"
+                        borderRadius="xl"
                         bg="black"
                         color="white"
                         fontWeight="semibold"
                         _hover={{ bg: 'gray.800' }}
-                        mt={2}
                     >
-                        Log In
+                        <ArrowUpRightIcon />
+                        Login
                     </Button>
                 </Stack>
             </form>
 
-            <Text mt={6} textAlign="center" fontSize="sm" color="gray.500">
+            <Text mt={6} textAlign="center" fontSize="14px" color="gray.500">
                 No account?{' '}
                 <ChakraLink as={RouterLink} to="/signup" color="black" fontWeight="semibold">
                     Sign up

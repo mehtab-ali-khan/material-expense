@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { Box, Input, VStack, Text } from '@chakra-ui/react'
+import { Box, HStack, Input, VStack, Text } from '@chakra-ui/react'
+import { PlusIcon, SearchIcon } from './Icons'
 
 /**
  * A searchable select-or-create dropdown.
@@ -18,6 +19,11 @@ function SearchableDropdown({
     onCreate,
     placeholder,
     labelKey = 'name',
+    inputRef,
+    onCommit,
+    onFocus,
+    onBlur,
+    enterKeyHint = 'next',
 }) {
     const [isOpen, setIsOpen] = useState(false)
     const containerRef = useRef(null)
@@ -40,37 +46,52 @@ function SearchableDropdown({
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [])
 
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault()
-            const trimmed = (value || '').trim()
-            if (!trimmed) return
+    const commitSelection = async (callback) => {
+        await callback()
+        setIsOpen(false)
+        window.setTimeout(() => onCommit?.(), 0)
+    }
 
-            if (exactMatch) {
-                onSelect(exactMatch)
-            } else {
-                onCreate(trimmed)
-            }
-            setIsOpen(false)
+    const handleCreate = () => {
+        const trimmed = (value || '').trim()
+        if (!trimmed || exactMatch) return
+        commitSelection(() => onCreate(trimmed))
+    }
+
+    const handleKeyDown = (e) => {
+        if (e.key !== 'Enter') return
+        e.preventDefault()
+        const trimmed = (value || '').trim()
+        if (!trimmed) return
+
+        if (exactMatch) {
+            commitSelection(() => onSelect(exactMatch))
+        } else {
+            handleCreate()
         }
     }
 
     const handlePick = (opt) => {
-        onSelect(opt)
-        setIsOpen(false)
+        commitSelection(() => onSelect(opt))
     }
 
     return (
         <Box position="relative" ref={containerRef} w="100%">
             <Input
+                ref={inputRef}
                 value={value || ''}
                 onChange={(e) => {
                     onChange(e.target.value)
                     setIsOpen(true)
                 }}
-                onFocus={() => setIsOpen(true)}
+                onFocus={() => {
+                    setIsOpen(true)
+                    onFocus?.()
+                }}
+                onBlur={onBlur}
                 onKeyDown={handleKeyDown}
-                placeholder={placeholder}
+                enterKeyHint={enterKeyHint}
+                placeholder={placeholder || 'Type to search'}
                 bg="white"
                 border="1px solid"
                 borderColor="gray.300"
@@ -78,8 +99,9 @@ function SearchableDropdown({
                 _placeholder={{ color: 'gray.400' }}
                 _hover={{ borderColor: 'gray.400' }}
                 _focus={{ borderColor: 'black', boxShadow: '0 0 0 1px black' }}
-                size="lg"
-                borderRadius="lg"
+                borderRadius="xl"
+                minH="54px"
+                fontSize="16px"
             />
 
             {isOpen && (filtered.length > 0 || (value || '').trim().length > 0) && (
@@ -91,33 +113,54 @@ function SearchableDropdown({
                     bg="white"
                     border="1px solid"
                     borderColor="gray.200"
-                    borderRadius="lg"
-                    boxShadow="0 8px 24px rgba(0,0,0,0.1)"
-                    maxH="125px"
+                    borderRadius="xl"
+                    boxShadow="0 8px 24px rgba(0,0,0,0.12)"
+                    maxH="180px"
                     overflowY="auto"
-                    zIndex={20}
+                    zIndex={60}
                     className="styled-scrollbar"
                 >
                     <VStack gap={0} align="stretch">
+                        <HStack px={4} py={3} minH="52px" color="gray.500" borderBottom="1px solid" borderColor="gray.100">
+                            <SearchIcon size={16} />
+                            <Text fontSize="sm">Choose existing or add new</Text>
+                        </HStack>
                         {filtered.length > 0 ? (
                             filtered.map((opt) => (
                                 <Box
+                                    as="button"
+                                    type="button"
                                     key={opt.id}
                                     px={4}
-                                    py={2.5}
+                                    py={3}
+                                    minH="52px"
+                                    textAlign="left"
                                     cursor="pointer"
                                     _hover={{ bg: 'gray.50' }}
                                     onClick={() => handlePick(opt)}
                                 >
-                                    <Text color="black" fontSize="sm">{opt[labelKey]}</Text>
+                                    <Text color="black" fontSize="16px">{opt[labelKey]}</Text>
                                 </Box>
                             ))
-                        ) : (
-                            <Box px={4} py={2.5}>
-                                <Text color="gray.500" fontSize="sm">
-                                    Press Enter to create "{(value || '').trim()}"
-                                </Text>
-                            </Box>
+                        ) : null}
+                        {(value || '').trim().length > 0 && !exactMatch && (
+                            <HStack
+                                as="button"
+                                type="button"
+                                px={4}
+                                py={3}
+                                minH="52px"
+                                textAlign="left"
+                                color="black"
+                                bg="green.50"
+                                borderTop="1px solid"
+                                borderColor="green.100"
+                                _hover={{ bg: 'green.100' }}
+                                onClick={handleCreate}
+                            >
+                                <PlusIcon size={16} />
+                                <Text fontSize="16px" fontWeight="semibold">Add new: {(value || '').trim()}</Text>
+                            </HStack>
                         )}
                     </VStack>
                 </Box>

@@ -1,11 +1,26 @@
 import { useState, useEffect } from 'react'
-import { Box, Heading, Table, Text, VStack, SimpleGrid } from '@chakra-ui/react'
+import { Box, Heading, Text, VStack, HStack } from '@chakra-ui/react'
 import { getSales } from '../api/sales'
 import AppLayout from '../components/AppLayout'
+import PageLoader from '../components/PageLoader'
+import ToastMessage from '../components/ToastMessage'
+
+const formatDisplayDate = (date) => {
+    if (!date) return ''
+    const parsed = new Date(`${date}T00:00:00`)
+    return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+}
+
+const formatNumber = (value) => {
+    const number = Number(value)
+    if (!Number.isFinite(number)) return value
+    return number.toLocaleString('en-US', { maximumFractionDigits: 2 })
+}
 
 function ProfitPage() {
     const [sales, setSales] = useState([])
     const [loading, setLoading] = useState(true)
+    const [toast, setToast] = useState('')
 
     useEffect(() => {
         loadSales()
@@ -13,128 +28,114 @@ function ProfitPage() {
 
     const loadSales = async () => {
         setLoading(true)
-        const res = await getSales()
-        setSales(res.data)
-        setLoading(false)
+        try {
+            const res = await getSales()
+            setSales(res.data)
+        } catch {
+            setToast('Could not load data')
+        } finally {
+            setLoading(false)
+        }
     }
 
-    const grandTotal = sales.reduce((sum, s) => sum + Number(s.profit), 0)
+    const grandTotal = sales.reduce((sum, sale) => sum + Number(sale.profit), 0)
 
     return (
         <AppLayout>
-            <Box maxW="3xl" mx="auto" p={{ base: 4, sm: 6 }}>
-                <Heading size="lg" color="black" mb={2}>
-                    Profit
-                </Heading>
+            <Box
+                px={4}
+                pt="calc(16px + env(safe-area-inset-top))"
+                pb="calc(88px + env(safe-area-inset-bottom))"
+            >
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+                    <Heading fontSize="24px" lineHeight="1.1" color="black">
+                        Profit
+                    </Heading>
+                </Box>
 
                 <Box
-                    bg="white"
+                    mb={3}
+                    px={4}
+                    py={3}
                     border="1px solid"
                     borderColor="gray.200"
                     borderRadius="xl"
-                    px={5}
-                    py={4}
-                    mb={6}
-                    display="flex"
-                    justifyContent="space-between"
-                    alignItems="center"
+                    bg="white"
+                    color="black"
                 >
-                    <VStack align="start" gap={0}>
-                        <Text fontSize="xs" color="gray.500" fontWeight="medium" textTransform="uppercase" letterSpacing="wide">
-                            Total Profit
-                        </Text>
-                        <Text fontSize="2xl" color="black">
-                            {grandTotal.toFixed(2)}
-                        </Text>
-                    </VStack>
-
+                    <Text fontSize="12px" color="gray.500" fontWeight="semibold">
+                        Total profit
+                    </Text>
+                    <Text fontSize="22px" color="black" fontWeight="bold" lineHeight="1.2">
+                        {formatNumber(grandTotal)}
+                    </Text>
                 </Box>
 
                 {loading ? (
-                    <Text color="gray.500">Loading...</Text>
+                    <PageLoader />
                 ) : sales.length === 0 ? (
-                    <Text color="gray.500">No sales recorded yet.</Text>
-                ) : (
-                    <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="xl" overflow="hidden">
-                        {/* Desktop / wide table */}
-                        <Box display={{ base: 'none', md: 'block' }}>
-                            <Table.Root size="md">
-                                <Table.Header>
-                                    <Table.Row bg="gray.50">
-                                        <Table.ColumnHeader>Item</Table.ColumnHeader>
-                                        <Table.ColumnHeader>Variant</Table.ColumnHeader>
-                                        <Table.ColumnHeader>Salesman</Table.ColumnHeader>
-                                        <Table.ColumnHeader textAlign="end">Qty</Table.ColumnHeader>
-                                        <Table.ColumnHeader textAlign="end">Cost</Table.ColumnHeader>
-                                        <Table.ColumnHeader textAlign="end">Sale Price</Table.ColumnHeader>
-                                        <Table.ColumnHeader textAlign="end">Profit</Table.ColumnHeader>
-                                        <Table.ColumnHeader>Date</Table.ColumnHeader>
-                                    </Table.Row>
-                                </Table.Header>
-                                <Table.Body>
-                                    {sales.map((s) => (
-                                        <Table.Row key={s.id}>
-                                            <Table.Cell fontWeight="medium" color="black">{s.item_name}</Table.Cell>
-                                            <Table.Cell color="gray.700">{s.length} · {s.measurement}</Table.Cell>
-                                            <Table.Cell color="gray.700">{s.salesman_name}</Table.Cell>
-                                            <Table.Cell textAlign="end" color="gray.700">{s.quantity}</Table.Cell>
-                                            <Table.Cell textAlign="end" color="gray.700">{s.purchase_price_snapshot}</Table.Cell>
-                                            <Table.Cell textAlign="end" color="gray.700">{s.sale_price}</Table.Cell>
-                                            <Table.Cell textAlign="end" color={Number(s.profit) >= 0 ? 'black' : 'red.600'}>
-                                                {s.profit}
-                                            </Table.Cell>
-                                            <Table.Cell color="gray.500">{s.date}</Table.Cell>
-                                        </Table.Row>
-                                    ))}
-                                </Table.Body>
-                            </Table.Root>
-                        </Box>
-
-                        {/* Mobile card list */}
-                        <VStack display={{ base: 'flex', md: 'none' }} gap={0} align="stretch">
-                            {sales.map((s) => (
-                                <Box key={s.id} px={4} py={3} borderBottom="1px solid" borderColor="gray.100">
-                                    <Box display="flex" justifyContent="space-between" alignItems="start">
-                                        <Box>
-                                            <Text color="black">{s.item_name}</Text>
-                                            <Text fontSize="sm" color="gray.500">
-                                                {s.length} · {s.measurement}
-                                            </Text>
-                                        </Box>
-                                        <VStack gap={0} align="end">
-                                            <Text fontSize="xs" color="gray.500">Profit</Text>
-                                            <Text fontSize="lg" color="black">
-                                                {s.profit}
-                                            </Text>
-                                        </VStack>
-                                    </Box>
-
-                                    <SimpleGrid columns={3} gap={2} mt={3} bg="gray.50" borderRadius="lg" p={2}>
-                                        <VStack gap={0} align="center">
-                                            <Text fontSize="xs" color="gray.500">Cost</Text>
-                                            <Text fontSize="sm" fontWeight="medium" color="black">{s.purchase_price_snapshot}</Text>
-                                        </VStack>
-                                        <VStack gap={0} align="center">
-                                            <Text fontSize="xs" color="gray.500">Sale Price</Text>
-                                            <Text fontSize="sm" fontWeight="medium" color="black">{s.sale_price}</Text>
-                                        </VStack>
-                                        <VStack gap={0} align="center">
-                                            <Text fontSize="xs" color="gray.500">Qty</Text>
-                                            <Text fontSize="sm" fontWeight="medium" color="black">{s.quantity}</Text>
-                                        </VStack>
-                                    </SimpleGrid>
-
-                                    <Box display="flex" justifyContent="space-between" mt={2}>
-                                        <Text fontSize="xs" color="gray.500">{s.salesman_name}</Text>
-                                        <Text fontSize="xs" color="gray.500">{s.date}</Text>
-                                    </Box>
-                                </Box>
-                            ))}
-                        </VStack>
+                    <Box
+                        bg="white"
+                        border="1px solid"
+                        borderColor="gray.200"
+                        borderRadius="2xl"
+                        px={5}
+                        py={8}
+                        textAlign="center"
+                    >
+                        <Text color="black" fontWeight="semibold">Nothing here yet</Text>
+                        <Text color="gray.500" fontSize="14px" mt={1}>New entries will appear here.</Text>
                     </Box>
+                ) : (
+                    <VStack gap={2} align="stretch">
+                        {[...sales].sort((a, b) => new Date(b.date) - new Date(a.date) || b.id - a.id).map((sale) => (
+                            <ProfitCard key={sale.id} sale={sale} />
+                        ))}
+                    </VStack>
                 )}
             </Box>
+            <ToastMessage message={toast} onDone={() => setToast('')} />
         </AppLayout>
+    )
+}
+
+function ProfitCard({ sale }) {
+    return (
+        <Box bg="white" border="1px solid" borderColor="gray.100" borderRadius="xl" px={3} py={2.5}>
+            <HStack justify="space-between" align="start" gap={3}>
+                <Box minW={0}>
+                    <Text
+                        color="black"
+                        fontSize="16px"
+                        fontWeight="semibold"
+                        lineHeight="1.25"
+                        overflow="hidden"
+                        textOverflow="ellipsis"
+                        whiteSpace="nowrap"
+                    >
+                        {sale.item_name}
+                    </Text>
+                    <Text fontSize="12px" color="gray.500" lineHeight="1.3">
+                        {sale.length} · {sale.measurement}
+                    </Text>
+                </Box>
+                <Text
+                    color="black"
+                    fontSize="17px"
+                    fontWeight="bold"
+                    lineHeight="1.25"
+                    whiteSpace="nowrap"
+                    flexShrink={0}
+                >
+                    {formatNumber(sale.profit)}
+                </Text>
+            </HStack>
+
+            <Text mt={1.5} fontSize="12px" color="gray.600" lineHeight="1.35">
+                {sale.quantity} qty · sale {formatNumber(sale.sale_price)} · cost {formatNumber(sale.purchase_price_snapshot)} · {formatDisplayDate(sale.date)}
+                {sale.salesman_name ? ` · ${sale.salesman_name}` : ''}
+            </Text>
+        </Box>
     )
 }
 

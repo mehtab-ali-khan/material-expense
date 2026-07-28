@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { Box, Button, Input, Stack, Text, Link as ChakraLink, Field } from '@chakra-ui/react'
+import { Button, Input, Stack, Text, Link as ChakraLink, Field } from '@chakra-ui/react'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
 import { signup, login } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
 import AuthLayout from '../components/AuthLayout'
+import { PlusIcon } from '../components/Icons'
+import FormMessage from '../components/FormMessage'
 
 const inputStyles = {
     bg: 'white',
@@ -13,13 +15,18 @@ const inputStyles = {
     _placeholder: { color: 'gray.400' },
     _hover: { borderColor: 'gray.400' },
     _focus: { borderColor: 'black', boxShadow: '0 0 0 1px black' },
-    size: 'lg',
-    borderRadius: 'full',
+    borderRadius: 'xl',
+    minH: '54px',
+    fontSize: '16px',
 }
 
 function SignupPage() {
+    const [firstName, setFirstName] = useState('')
+    const [lastName, setLastName] = useState('')
+    const [phone, setPhone] = useState('')
     const [name, setName] = useState('')
     const [password, setPassword] = useState('')
+    const [confirmPassword, setConfirmPassword] = useState('')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
 
@@ -29,13 +36,20 @@ function SignupPage() {
     const handleSubmit = async (e) => {
         e.preventDefault()
         setError('')
+        if (password !== confirmPassword) {
+            setError('Passwords do not match.')
+            return
+        }
         setLoading(true)
         try {
+            window.localStorage.setItem('profile_first_name', firstName)
+            window.localStorage.setItem('profile_last_name', lastName)
+            window.localStorage.setItem('profile_phone', phone)
             await signup(name, password)
             const res = await login(name, password)
             loginSuccess(res.data.token, res.data.company_name)
             navigate('/purchase')
-        } catch (err) {
+        } catch {
             setError('Could not sign up. Company name may already be taken.')
         } finally {
             setLoading(false)
@@ -43,14 +57,51 @@ function SignupPage() {
     }
 
     return (
-        <AuthLayout title="Create your account" subtitle="Set up your company to get started">
+        <AuthLayout title="Create company" subtitle="Start tracking your material expenses.">
             <form onSubmit={handleSubmit}>
                 <Stack gap={4}>
+                    <Field.Root>
+                        <Input
+                            placeholder="First name"
+                            value={firstName}
+                            onChange={(e) => setFirstName(e.target.value)}
+                            autoComplete="given-name"
+                            enterKeyHint="next"
+                            required
+                            {...inputStyles}
+                        />
+                    </Field.Root>
+                    <Field.Root>
+                        <Input
+                            placeholder="Last name"
+                            value={lastName}
+                            onChange={(e) => setLastName(e.target.value)}
+                            autoComplete="family-name"
+                            enterKeyHint="next"
+                            required
+                            {...inputStyles}
+                        />
+                    </Field.Root>
+                    <Field.Root>
+                        <Input
+                            type="tel"
+                            inputMode="tel"
+                            placeholder="Phone number"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            autoComplete="tel"
+                            enterKeyHint="next"
+                            required
+                            {...inputStyles}
+                        />
+                    </Field.Root>
                     <Field.Root>
                         <Input
                             placeholder="Company name"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
+                            autoComplete="organization"
+                            enterKeyHint="next"
                             required
                             {...inputStyles}
                         />
@@ -61,35 +112,47 @@ function SignupPage() {
                             placeholder="Password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
+                            autoComplete="new-password"
+                            enterKeyHint="done"
+                            required
+                            {...inputStyles}
+                        />
+                    </Field.Root>
+                    <Field.Root>
+                        <Input
+                            type="password"
+                            placeholder="Confirm password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            autoComplete="new-password"
+                            enterKeyHint="done"
                             required
                             {...inputStyles}
                         />
                     </Field.Root>
 
                     {error && (
-                        <Box bg="red.50" border="1px solid" borderColor="red.200" borderRadius="lg" px={3} py={2}>
-                            <Text color="red.600" fontSize="sm">{error}</Text>
-                        </Box>
+                        <FormMessage tone="error">{error}</FormMessage>
                     )}
 
                     <Button
                         type="submit"
                         loading={loading}
                         w="full"
-                        size="lg"
-                        borderRadius="full"
+                        minH="54px"
+                        borderRadius="xl"
                         bg="black"
                         color="white"
                         fontWeight="semibold"
                         _hover={{ bg: 'gray.800' }}
-                        mt={2}
                     >
-                        Sign Up
+                        <PlusIcon />
+                        Sign up
                     </Button>
                 </Stack>
             </form>
 
-            <Text mt={6} textAlign="center" fontSize="sm" color="gray.500">
+            <Text mt={6} textAlign="center" fontSize="14px" color="gray.500">
                 Already have an account?{' '}
                 <ChakraLink as={RouterLink} to="/login" color="black" fontWeight="semibold">
                     Log in

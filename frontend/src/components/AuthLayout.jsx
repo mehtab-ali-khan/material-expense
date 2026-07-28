@@ -1,33 +1,26 @@
-import { Box, Center, VStack, Heading, Text } from '@chakra-ui/react'
+import { Box, VStack, Heading, Text } from '@chakra-ui/react'
 
 function AuthLayout({ title, subtitle, children }) {
     return (
         <Box
-            minH="100vh"
+            minH="100dvh"
             w="100%"
             bg="gray.50"
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
             px={4}
-            py={8}
+            pt="calc(56px + env(safe-area-inset-top))"
+            pb="calc(24px + env(safe-area-inset-bottom))"
         >
             <Box
                 w="100%"
-                maxW="380px"
-                bg="white"
-                border="1px solid"
-                borderColor="gray.200"
-                borderRadius="2xl"
-                boxShadow="0 4px 24px rgba(0,0,0,0.06)"
-                p={{ base: 6, sm: 8 }}
+                maxW="420px"
+                mx="auto"
             >
-                <VStack gap={1} mb={7} align="stretch">
-                    <Heading size="lg" textAlign="center" color="black" letterSpacing="tight">
+                <VStack gap={1} mb={8} align="stretch">
+                    <Heading fontSize="30px" lineHeight="1.1" color="black" letterSpacing="tight">
                         {title}
                     </Heading>
                     {subtitle && (
-                        <Text textAlign="center" color="gray.500" fontSize="sm">
+                        <Text color="gray.500" fontSize="15px">
                             {subtitle}
                         </Text>
                     )}

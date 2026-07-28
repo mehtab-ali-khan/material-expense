@@ -1,14 +1,17 @@
 import { Box } from '@chakra-ui/react'
 import NavBar from './NavBar'
 
-function AppLayout({ children }) {
+function AppLayout({ children, hideBottomNav = false }) {
     return (
-        <Box minH="100vh" bg="gray.50">
-            <NavBar />
+        <Box minH="100dvh" bg="gray.50">
+            <NavBar hideBottomNav={hideBottomNav} />
             <Box
                 ml={{ base: 0, md: '220px' }}
-                pt={{ base: '60px', md: 0 }}
-                pb={{ base: '80px', md: 0 }}
+                pt={0}
+                pb={{
+                    base: hideBottomNav ? 0 : 'calc(84px + env(safe-area-inset-bottom))',
+                    md: 0,
+                }}
             >
                 {children}
             </Box>

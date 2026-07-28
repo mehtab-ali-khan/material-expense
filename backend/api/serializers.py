@@ -56,7 +56,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(write_only=True)
     length = serializers.CharField(write_only=True)
     measurement = serializers.CharField(write_only=True)
-    salesman_name = serializers.CharField(write_only=True)
+    salesman_name = serializers.CharField(write_only=True, required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = Purchase
@@ -98,11 +98,14 @@ class PurchaseSerializer(serializers.ModelSerializer):
                 "measurement": validated_data["measurement"].strip(),
             },
         )
-        salesman, _ = Salesman.objects.get_or_create(
-            company=company,
-            name__iexact=validated_data["salesman_name"].strip(),
-            defaults={"name": validated_data["salesman_name"].strip()},
-        )
+        salesman_name = (validated_data.get("salesman_name") or "").strip()
+        salesman = None
+        if salesman_name:
+            salesman, _ = Salesman.objects.get_or_create(
+                company=company,
+                name__iexact=salesman_name,
+                defaults={"name": salesman_name},
+            )
 
         return Purchase.objects.create(
             variant=variant,
@@ -117,7 +120,7 @@ class SaleSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(source="variant.item.name", read_only=True)
     length = serializers.CharField(source="variant.length", read_only=True)
     measurement = serializers.CharField(source="variant.measurement", read_only=True)
-    salesman_name = serializers.CharField(write_only=True)
+    salesman_name = serializers.CharField(write_only=True, required=False, allow_blank=True, allow_null=True)
     profit = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
     class Meta:
@@ -150,11 +153,14 @@ class SaleSerializer(serializers.ModelSerializer):
         if variant.item.company_id != company.id:
             raise DRFValidationError("Invalid variant.")
 
-        salesman, _ = Salesman.objects.get_or_create(
-            company=company,
-            name__iexact=validated_data["salesman_name"].strip(),
-            defaults={"name": validated_data["salesman_name"].strip()},
-        )
+        salesman_name = (validated_data.get("salesman_name") or "").strip()
+        salesman = None
+        if salesman_name:
+            salesman, _ = Salesman.objects.get_or_create(
+                company=company,
+                name__iexact=salesman_name,
+                defaults={"name": salesman_name},
+            )
 
         sale = Sale(
             variant=variant,
