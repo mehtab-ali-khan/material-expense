@@ -222,3 +222,4 @@ __marimo__/
 .vscode/
 .DS_Store
 EOF
+prod/.env
