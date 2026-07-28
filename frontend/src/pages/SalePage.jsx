@@ -90,7 +90,7 @@ function SalePage() {
                                     </VStack>
                                 </SimpleGrid>
                                 <Box display="flex" justifyContent="space-between" mt={2}>
-                                    <Text fontSize="xs" color="gray.500">{s.salesman_display}</Text>
+                                    <Text fontSize="xs" color="gray.500">{s.salesman_name}</Text>
                                     <Text fontSize="xs" color="gray.500">{s.date}</Text>
                                 </Box>
                             </Box>

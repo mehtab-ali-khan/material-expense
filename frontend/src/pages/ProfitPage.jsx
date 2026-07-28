@@ -76,7 +76,7 @@ function ProfitPage() {
                                         <Table.Row key={s.id}>
                                             <Table.Cell fontWeight="medium" color="black">{s.item_name}</Table.Cell>
                                             <Table.Cell color="gray.700">{s.length} · {s.measurement}</Table.Cell>
-                                            <Table.Cell color="gray.700">{s.salesman_display}</Table.Cell>
+                                            <Table.Cell color="gray.700">{s.salesman_name}</Table.Cell>
                                             <Table.Cell textAlign="end" color="gray.700">{s.quantity}</Table.Cell>
                                             <Table.Cell textAlign="end" color="gray.700">{s.purchase_price_snapshot}</Table.Cell>
                                             <Table.Cell textAlign="end" color="gray.700">{s.sale_price}</Table.Cell>
@@ -125,7 +125,7 @@ function ProfitPage() {
                                     </SimpleGrid>
 
                                     <Box display="flex" justifyContent="space-between" mt={2}>
-                                        <Text fontSize="xs" color="gray.500">{s.salesman_display}</Text>
+                                        <Text fontSize="xs" color="gray.500">{s.salesman_name}</Text>
                                         <Text fontSize="xs" color="gray.500">{s.date}</Text>
                                     </Box>
                                 </Box>

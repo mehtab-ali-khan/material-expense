@@ -58,13 +58,6 @@ class PurchaseSerializer(serializers.ModelSerializer):
     measurement = serializers.CharField(write_only=True)
     salesman_name = serializers.CharField(write_only=True)
 
-    item_display = serializers.CharField(source="variant.item.name", read_only=True)
-    length_display = serializers.CharField(source="variant.length", read_only=True)
-    measurement_display = serializers.CharField(
-        source="variant.measurement", read_only=True
-    )
-    salesman_display = serializers.CharField(source="salesman.name", read_only=True)
-
     class Meta:
         model = Purchase
         fields = [
@@ -73,16 +66,20 @@ class PurchaseSerializer(serializers.ModelSerializer):
             "length",
             "measurement",
             "salesman_name",
-            "item_display",
-            "length_display",
-            "measurement_display",
-            "salesman_display",
             "quantity",
             "price",
             "date",
             "created_at",
         ]
         read_only_fields = ["created_at"]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["item_name"] = instance.variant.item.name
+        data["length"] = instance.variant.length
+        data["measurement"] = instance.variant.measurement
+        data["salesman_name"] = instance.salesman.name if instance.salesman else None
+        return data
 
     def create(self, validated_data):
         company = self.context["request"].user
@@ -120,10 +117,7 @@ class SaleSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(source="variant.item.name", read_only=True)
     length = serializers.CharField(source="variant.length", read_only=True)
     measurement = serializers.CharField(source="variant.measurement", read_only=True)
-
-    salesman_name = serializers.CharField(write_only=True)  # input: user-typed text
-    salesman_display = serializers.CharField(source="salesman.name", read_only=True)
-
+    salesman_name = serializers.CharField(write_only=True)
     profit = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
     class Meta:
@@ -135,7 +129,6 @@ class SaleSerializer(serializers.ModelSerializer):
             "length",
             "measurement",
             "salesman_name",
-            "salesman_display",
             "quantity",
             "sale_price",
             "purchase_price_snapshot",
@@ -144,6 +137,11 @@ class SaleSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["purchase_price_snapshot", "created_at"]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["salesman_name"] = instance.salesman.name if instance.salesman else None
+        return data
 
     def create(self, validated_data):
         company = self.context["request"].user

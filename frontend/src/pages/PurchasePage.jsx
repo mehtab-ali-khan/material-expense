@@ -82,8 +82,8 @@ function PurchasePage() {
                             <Box key={p.id} px={4} py={3} borderBottom="1px solid" borderColor="gray.100">
                                 <Box display="flex" justifyContent="space-between" alignItems="start">
                                     <Box>
-                                        <Text color="black">{p.item_display}</Text>
-                                        <Text fontSize="sm" color="gray.500">{p.length_display} · {p.measurement_display}</Text>
+                                        <Text color="black">{p.item_name}</Text>
+                                        <Text fontSize="sm" color="gray.500">{p.length} · {p.measurement}</Text>
                                     </Box>
                                     <Text color="black">Rs. {p.price}/unit</Text>
                                 </Box>
@@ -94,7 +94,7 @@ function PurchasePage() {
                                     </VStack>
                                     <VStack gap={0} align="center">
                                         <Text fontSize="xs" color="gray.500">Salesman</Text>
-                                        <Text fontSize="sm" fontWeight="medium" color="black">{p.salesman_display}</Text>
+                                        <Text fontSize="sm" fontWeight="medium" color="black">{p.salesman_name}</Text>
                                     </VStack>
                                     <VStack gap={0} align="center">
                                         <Text fontSize="xs" color="gray.500">Date</Text>
