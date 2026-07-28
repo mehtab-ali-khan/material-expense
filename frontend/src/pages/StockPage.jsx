@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Box, Heading, Input, Table, Text, VStack } from '@chakra-ui/react'
+import { Box, Heading, Input, Table, Text, VStack, SimpleGrid } from '@chakra-ui/react'
 import { getVariants } from '../api/variants'
 import AppLayout from '../components/AppLayout'
 
@@ -78,17 +78,29 @@ function StockPage() {
                         </Box>
 
                         {/* Mobile card list */}
+                        {/* Mobile card list */}
                         <VStack display={{ base: 'flex', md: 'none' }} gap={0} align="stretch">
                             {filtered.map((v) => (
                                 <Box key={v.id} px={4} py={3} borderBottom="1px solid" borderColor="gray.100">
-                                    <Text fontWeight="semibold" color="black">{v.item_name}</Text>
-                                    <Text fontSize="sm" color="gray.500">
-                                        {v.length} · {v.measurement}
-                                    </Text>
-                                    <Box display="flex" justifyContent="space-between" mt={1}>
-                                        <Text fontSize="sm" color="gray.700">Qty: {v.current_stock_qty}</Text>
-                                        <Text fontSize="sm" color="gray.700">Avg: {v.avg_purchase_price}</Text>
+                                    <Box display="flex" justifyContent="space-between" alignItems="start">
+                                        <Box>
+                                            <Text fontWeight="semibold" color="black">{v.item_name}</Text>
+                                            <Text fontSize="sm" color="gray.500">
+                                                {v.length} · {v.measurement}
+                                            </Text>
+                                        </Box>
                                     </Box>
+
+                                    <SimpleGrid columns={2} gap={2} mt={3} bg="gray.50" borderRadius="lg" p={2}>
+                                        <VStack gap={0} align="center">
+                                            <Text fontSize="xs" color="gray.500">Avg Price</Text>
+                                            <Text fontSize="sm" fontWeight="medium" color="black">{v.avg_purchase_price}</Text>
+                                        </VStack>
+                                        <VStack gap={0} align="center">
+                                            <Text fontSize="xs" color="gray.500">Quantity</Text>
+                                            <Text fontSize="sm" fontWeight="medium" color="black">{v.current_stock_qty}</Text>
+                                        </VStack>
+                                    </SimpleGrid>
                                 </Box>
                             ))}
                         </VStack>

@@ -80,7 +80,7 @@ function ProfitPage() {
                                             <Table.Cell textAlign="end" color="gray.700">{s.quantity}</Table.Cell>
                                             <Table.Cell textAlign="end" color="gray.700">{s.purchase_price_snapshot}</Table.Cell>
                                             <Table.Cell textAlign="end" color="gray.700">{s.sale_price}</Table.Cell>
-                                            <Table.Cell textAlign="end" fontWeight="semibold" color={Number(s.profit) >= 0 ? 'green.600' : 'red.600'}>
+                                            <Table.Cell textAlign="end" color={Number(s.profit) >= 0 ? 'black' : 'red.600'}>
                                                 {s.profit}
                                             </Table.Cell>
                                             <Table.Cell color="gray.500">{s.date}</Table.Cell>
@@ -101,9 +101,12 @@ function ProfitPage() {
                                                 {s.length} · {s.measurement}
                                             </Text>
                                         </Box>
-                                        <Text fontWeight="bold" fontSize="lg" color={Number(s.profit) >= 0 ? 'green.600' : 'red.600'}>
-                                            {s.profit}
-                                        </Text>
+                                        <VStack gap={0} align="end">
+                                            <Text fontSize="xs" color="gray.500">Profit</Text>
+                                            <Text fontSize="lg" color="black">
+                                                {s.profit}
+                                            </Text>
+                                        </VStack>
                                     </Box>
 
                                     <SimpleGrid columns={3} gap={2} mt={3} bg="gray.50" borderRadius="lg" p={2}>
