@@ -89,7 +89,7 @@ class PurchaseListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         return Purchase.objects.filter(
             variant__item__company=self.request.user
-        ).order_by("-date")
+        ).order_by("-created_at")
 
 
 class SaleListCreateView(generics.ListCreateAPIView):
@@ -97,5 +97,5 @@ class SaleListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         return Sale.objects.filter(variant__item__company=self.request.user).order_by(
-            "-date"
+            "-created_at"
         )
