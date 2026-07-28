@@ -93,9 +93,10 @@ function SearchableDropdown({
                     borderColor="gray.200"
                     borderRadius="lg"
                     boxShadow="0 8px 24px rgba(0,0,0,0.1)"
-                    maxH="200px"
+                    maxH="125px"
                     overflowY="auto"
                     zIndex={20}
+                    className="styled-scrollbar"
                 >
                     <VStack gap={0} align="stretch">
                         {filtered.length > 0 ? (

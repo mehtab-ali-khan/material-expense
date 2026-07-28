@@ -168,9 +168,14 @@ function SalePage() {
                         )}
 
                         {selectedVariant && (
-                            <Badge alignSelf="start" bg="gray.100" color="black" px={3} py={1} borderRadius="full">
-                                In stock: {selectedVariant.current_stock_qty}
-                            </Badge>
+                            <Box display="flex" gap={2}>
+                                <Badge bg="gray.100" color="black" px={3} py={1} borderRadius="full" fontSize="xs">
+                                    In stock: {selectedVariant.current_stock_qty}
+                                </Badge>
+                                <Badge bg="gray.100" color="black" px={3} py={1} borderRadius="full" fontSize="xs">
+                                    Avg price: {selectedVariant.avg_purchase_price}
+                                </Badge>
+                            </Box>
                         )}
 
                         <Field label="Salesman">
