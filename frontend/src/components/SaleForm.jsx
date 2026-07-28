@@ -153,17 +153,6 @@ function SaleForm({ items, salesmen, onSaved }) {
                         </Box>
                     )}
 
-                    <Field label="Salesman">
-                        <SearchableDropdown
-                            options={salesmen}
-                            value={salesmanName}
-                            onChange={setSalesmanName}
-                            onSelect={(opt) => setSalesmanName(opt.name)}
-                            onCreate={(text) => setSalesmanName(text)}
-                            placeholder="e.g. Ali"
-                        />
-                    </Field>
-
                     <SimpleGrid columns={2} gap={4}>
                         <Field label="Quantity">
                             <Input
@@ -191,6 +180,17 @@ function SaleForm({ items, salesmen, onSaved }) {
                             value={date}
                             onChange={(e) => setDate(e.target.value)}
                             {...fieldInputStyles}
+                        />
+                    </Field>
+
+                    <Field label="Salesman">
+                        <SearchableDropdown
+                            options={salesmen}
+                            value={salesmanName}
+                            onChange={setSalesmanName}
+                            onSelect={(opt) => setSalesmanName(opt.name)}
+                            onCreate={(text) => setSalesmanName(text)}
+                            placeholder="e.g. Ali"
                         />
                     </Field>
 

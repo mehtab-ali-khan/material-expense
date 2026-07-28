@@ -99,17 +99,6 @@ function PurchaseForm({ items, salesmen, lengthOptions, measurementOptions, onSa
                         </Field>
                     </SimpleGrid>
 
-                    <Field label="Salesman">
-                        <SearchableDropdown
-                            options={salesmen}
-                            value={form.salesmanName}
-                            onChange={(val) => updateField('salesmanName', val)}
-                            onSelect={(opt) => updateField('salesmanName', opt.name)}
-                            onCreate={(text) => updateField('salesmanName', text)}
-                            placeholder="e.g. Ali"
-                        />
-                    </Field>
-
                     <SimpleGrid columns={2} gap={4}>
                         <Field label="Quantity">
                             <Input
@@ -137,6 +126,17 @@ function PurchaseForm({ items, salesmen, lengthOptions, measurementOptions, onSa
                             value={form.date}
                             onChange={(e) => updateField('date', e.target.value)}
                             {...fieldInputStyles}
+                        />
+                    </Field>
+
+                    <Field label="Salesman">
+                        <SearchableDropdown
+                            options={salesmen}
+                            value={form.salesmanName}
+                            onChange={(val) => updateField('salesmanName', val)}
+                            onSelect={(opt) => updateField('salesmanName', opt.name)}
+                            onCreate={(text) => updateField('salesmanName', text)}
+                            placeholder="e.g. Ali"
                         />
                     </Field>
 
