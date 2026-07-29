@@ -103,7 +103,7 @@ function SignupPage() {
                             {...inputStyles}
                         />
                     </Field.Root>
-                    <Field.Root>
+                    <Field.Root invalid={password.length > 0 && password.length < 8}>
                         <Input
                             type="password"
                             placeholder="Password"
@@ -112,10 +112,13 @@ function SignupPage() {
                             autoComplete="new-password"
                             enterKeyHint="done"
                             required
+                            minLength={8}
                             {...inputStyles}
                         />
+                        <Field.ErrorText>Password must be at least 8 characters</Field.ErrorText>
                     </Field.Root>
-                    <Field.Root>
+
+                    <Field.Root invalid={confirmPassword.length > 0 && confirmPassword !== password}>
                         <Input
                             type="password"
                             placeholder="Confirm password"
@@ -124,8 +127,10 @@ function SignupPage() {
                             autoComplete="new-password"
                             enterKeyHint="done"
                             required
+                            minLength={8}
                             {...inputStyles}
                         />
+                        <Field.ErrorText>Passwords do not match</Field.ErrorText>
                     </Field.Root>
 
                     {error && (

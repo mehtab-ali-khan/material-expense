@@ -38,9 +38,9 @@ const sidebarExtraItems = [
 ]
 
 const moreSheetItems = [
+    { to: '/quotation', label: 'Quotations', key: 'quotation' },
     { to: '/account', label: 'Account', key: 'account' },
     { to: '/contact', label: 'Contact us', key: 'contact' },
-    { to: '/quotation', label: 'Quotations', key: 'quotation' },
 ]
 
 function NavBar({ hideBottomNav = false }) {
