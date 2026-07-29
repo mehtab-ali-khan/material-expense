@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Box, HStack, Input, Text } from '@chakra-ui/react'
-import { CalendarIcon, XIcon } from './Icons'
+import { CalendarIcon, XIcon, CheckIcon } from './Icons'
 
 const formatLabel = (dateStr) => {
     if (!dateStr) return 'All dates'
@@ -10,26 +10,51 @@ const formatLabel = (dateStr) => {
 
 function DateFilterBar({ value, onChange }) {
     const [isOpen, setIsOpen] = useState(false)
+    const [draft, setDraft] = useState(value || '')
     const containerRef = useRef(null)
+
+    // keep draft in sync when the applied value changes externally (e.g. cleared)
+    useEffect(() => {
+        setDraft(value || '')
+    }, [value])
 
     useEffect(() => {
         function handleClickOutside(e) {
             if (containerRef.current && !containerRef.current.contains(e.target)) {
                 setIsOpen(false)
+                setDraft(value || '') // discard unapplied draft
             }
         }
         document.addEventListener('mousedown', handleClickOutside)
         return () => document.removeEventListener('mousedown', handleClickOutside)
-    }, [])
+    }, [value])
 
     const isFiltered = !!value
+
+    const handleOpen = () => {
+        setDraft(value || '')
+        setIsOpen((o) => !o)
+    }
+
+    const handleApply = () => {
+        if (draft) {
+            onChange(draft)
+        }
+        setIsOpen(false)
+    }
+
+    const handleClear = () => {
+        onChange('')
+        setDraft('')
+        setIsOpen(false)
+    }
 
     return (
         <Box position="relative" ref={containerRef} mb={3}>
             <HStack
                 as="button"
                 type="button"
-                onClick={() => setIsOpen((o) => !o)}
+                onClick={handleOpen}
                 px={3}
                 py={2}
                 minH="38px"
@@ -43,7 +68,7 @@ function DateFilterBar({ value, onChange }) {
                 gap={1.5}
             >
                 <CalendarIcon size={15} />
-                <Text mt="2px" fontSize="13px" fontWeight="semibold">
+                <Text fontSize="13px" fontWeight="semibold">
                     {formatLabel(value)}
                 </Text>
             </HStack>
@@ -66,8 +91,7 @@ function DateFilterBar({ value, onChange }) {
                     justifyContent="center"
                     onClick={(e) => {
                         e.stopPropagation()
-                        onChange('')
-                        setIsOpen(false)
+                        handleClear()
                     }}
                 >
                     <XIcon size={11} />
@@ -86,19 +110,15 @@ function DateFilterBar({ value, onChange }) {
                     boxShadow="0 8px 24px rgba(0,0,0,0.12)"
                     p={3}
                     zIndex={60}
-                    minW="220px"
+                    minW="240px"
                 >
                     <Text fontSize="12px" color="gray.500" fontWeight="semibold" mb={2}>
                         Pick a date
                     </Text>
                     <Input
                         type="date"
-                        value={value}
-                        onChange={(e) => {
-                            onChange(e.target.value)
-                            setIsOpen(false)
-                        }}
-                        autoFocus
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
                         bg="white"
                         border="1px solid"
                         borderColor="gray.300"
@@ -106,27 +126,47 @@ function DateFilterBar({ value, onChange }) {
                         borderRadius="lg"
                         minH="44px"
                         fontSize="15px"
+                        mb={2}
                     />
-                    {isFiltered && (
+                    <HStack gap={2}>
                         <Box
                             as="button"
                             type="button"
-                            mt={2}
-                            w="100%"
+                            flex="1"
                             py={2}
                             borderRadius="lg"
-                            bg="gray.50"
-                            color="black"
+                            bg="black"
+                            color="white"
                             fontSize="13px"
                             fontWeight="semibold"
-                            onClick={() => {
-                                onChange('')
-                                setIsOpen(false)
-                            }}
+                            display="flex"
+                            alignItems="center"
+                            justifyContent="center"
+                            gap={1}
+                            disabled={!draft}
+                            opacity={!draft ? 0.4 : 1}
+                            onClick={handleApply}
                         >
-                            Show all dates
+                            <CheckIcon size={14} />
+                            Apply
                         </Box>
-                    )}
+                        {isFiltered && (
+                            <Box
+                                as="button"
+                                type="button"
+                                flex="1"
+                                py={2}
+                                borderRadius="lg"
+                                bg="gray.50"
+                                color="black"
+                                fontSize="13px"
+                                fontWeight="semibold"
+                                onClick={handleClear}
+                            >
+                                Show all
+                            </Box>
+                        )}
+                    </HStack>
                 </Box>
             )}
         </Box>
