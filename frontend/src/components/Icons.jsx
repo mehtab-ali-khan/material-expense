@@ -152,9 +152,9 @@ export function CalendarIcon(props) {
 export function MoreIcon(props) {
     return (
         <Icon {...props}>
-            <line x1="4" y1="6" x2="20" y2="6" />
-            <line x1="4" y1="12" x2="20" y2="12" />
-            <line x1="4" y1="18" x2="20" y2="18" />
+            <circle cx="5" cy="12" r="1" />
+            <circle cx="12" cy="12" r="1" />
+            <circle cx="19" cy="12" r="1" />
         </Icon>
     )
 }
