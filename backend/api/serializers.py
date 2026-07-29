@@ -10,14 +10,17 @@ class CompanySignupSerializer(serializers.ModelSerializer):
     class Meta:
         model = Company
         fields = ["id", "name", "password", "first_name", "last_name", "phone"]
-        extra_kwargs = {"password": {"write_only": True}}
+        extra_kwargs = {
+            "password": {"write_only": True},
+            "phone": {"required": True},
+        }
 
     def create(self, validated_data):
         company = Company(
             name=validated_data["name"],
             first_name=validated_data.get("first_name", ""),
             last_name=validated_data.get("last_name", ""),
-            phone=validated_data.get("phone", ""),
+            phone=validated_data["phone"],
         )
         company.set_password(validated_data["password"])
         company.save()
@@ -25,7 +28,7 @@ class CompanySignupSerializer(serializers.ModelSerializer):
 
 
 class CompanyLoginSerializer(serializers.Serializer):
-    name = serializers.CharField()
+    phone = serializers.CharField()
     password = serializers.CharField(write_only=True)
 
 

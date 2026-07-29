@@ -41,20 +41,20 @@ class LoginView(APIView):
         serializer = CompanyLoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        name = serializer.validated_data["name"].strip()
+        phone = serializer.validated_data["phone"].strip()
         password = serializer.validated_data["password"]
 
         try:
-            company = Company.objects.get(name__iexact=name)
+            company = Company.objects.get(phone=phone)
         except Company.DoesNotExist:
             return Response(
-                {"detail": "Invalid company name or password."},
+                {"detail": "Invalid phone number or password."},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
         if not company.check_password(password):
             return Response(
-                {"detail": "Invalid company name or password."},
+                {"detail": "Invalid phone number or password."},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 

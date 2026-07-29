@@ -11,7 +11,7 @@ class Company(models.Model):
     password = models.CharField(max_length=255)
     first_name = models.CharField(max_length=150, blank=True, default="")
     last_name = models.CharField(max_length=150, blank=True, default="")
-    phone = models.CharField(max_length=32, blank=True, default="")
+    phone = models.CharField(max_length=32, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     @property

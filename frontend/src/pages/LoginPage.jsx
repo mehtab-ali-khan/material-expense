@@ -21,7 +21,7 @@ const inputStyles = {
 }
 
 function LoginPage() {
-    const [name, setName] = useState('')
+    const [phone, setPhone] = useState('')
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
@@ -34,7 +34,7 @@ function LoginPage() {
         setError('')
         setLoading(true)
         try {
-            const res = await login(name, password)
+            const res = await login(phone, password)
             loginSuccess(res.data.token, res.data)
             navigate('/purchase')
         } catch {
@@ -50,10 +50,12 @@ function LoginPage() {
                 <Stack gap={4}>
                     <Field.Root>
                         <Input
-                            placeholder="Company name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            autoComplete="organization"
+                            type="tel"
+                            inputMode="tel"
+                            placeholder="Phone number"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            autoComplete="tel"
                             enterKeyHint="next"
                             required
                             {...inputStyles}

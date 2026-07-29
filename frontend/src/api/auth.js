@@ -9,7 +9,7 @@ export const signup = (name, password, firstName, lastName, phone) =>
     phone,
   })
 
-export const login = (name, password) =>
-  apiClient.post('/login/', { name, password })
+export const login = (phone, password) =>
+  apiClient.post('/login/', { phone, password })
 
 export const getMe = () => apiClient.get('/me/')
