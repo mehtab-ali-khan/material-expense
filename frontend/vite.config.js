@@ -32,9 +32,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Cache the built app files so it loads fast/works offline for static assets.
-        // API calls are NOT cached here — we don't want stale purchase/sale/stock data.
         globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
+        navigateFallbackDenylist: [/^\/api/, /^\/admin/],
       },
     }),
   ],
