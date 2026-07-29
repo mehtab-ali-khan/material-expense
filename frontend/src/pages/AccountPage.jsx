@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import AppLayout from '../components/AppLayout'
 import { LogOutIcon } from '../components/Icons'
 import { useAuth } from '../context/AuthContext'
+import { formatPhoneDisplay } from '../utils/phone'
+
 
 function AccountPage() {
     const { companyName, profile, logout } = useAuth()
@@ -28,7 +30,7 @@ function AccountPage() {
                 <Box bg="white" border="1px solid" borderColor="gray.100" borderRadius="xl" px={4} py={4}>
                     <VStack align="stretch" gap={4}>
                         <ProfileRow label="Name" value={`${firstName} ${lastName}`.trim() || 'Not added'} />
-                        <ProfileRow label="Phone" value={phone || 'Not added'} />
+                        <ProfileRow label="Phone" value={formatPhoneDisplay(phone) || 'Not added'} />
                         <Box>
                             <Text fontSize="12px" color="gray.500" fontWeight="semibold">
                                 Company

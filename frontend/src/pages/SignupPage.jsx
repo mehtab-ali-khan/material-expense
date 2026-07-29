@@ -43,7 +43,7 @@ function SignupPage() {
         setLoading(true)
         try {
             await signup(name, password, firstName, lastName, phone)
-            const res = await login(name, password)
+            const res = await login(phone, password)
             loginSuccess(res.data.token, res.data)
             navigate('/purchase')
         } catch {

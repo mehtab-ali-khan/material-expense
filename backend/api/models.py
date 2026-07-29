@@ -6,6 +6,33 @@ from django.contrib.auth.hashers import make_password, check_password
 from django.core.exceptions import ValidationError
 
 
+import re
+
+
+def normalize_phone(raw):
+    """
+    Normalize a phone number to a canonical digits-only international format.
+    Examples (Pakistan, default country code 92):
+      "+92 308 8253383"  -> "923088253383"
+      "0308-825-3383"     -> "923088253383"
+      "923088253383"      -> "923088253383"
+    """
+    if not raw:
+        return raw
+    digits = re.sub(r"\D", "", raw)  # strip everything except digits
+
+    if digits.startswith("0092"):
+        digits = digits[2:]  # "0092..." -> "92..."
+    elif digits.startswith("92"):
+        pass  # already has country code
+    elif digits.startswith("0"):
+        digits = "92" + digits[1:]  # local format "03..." -> "923..."
+    else:
+        digits = "92" + digits  # bare number, assume missing country code
+
+    return digits
+
+
 class Company(models.Model):
     name = models.CharField(max_length=255, unique=True)
     password = models.CharField(max_length=255)
@@ -26,6 +53,8 @@ class Company(models.Model):
 
     def save(self, *args, **kwargs):
         self.name = self.name.strip()
+        if self.phone:
+            self.phone = normalize_phone(self.phone)
         super().save(*args, **kwargs)
 
     def __str__(self):

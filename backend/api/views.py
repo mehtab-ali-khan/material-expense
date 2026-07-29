@@ -4,6 +4,8 @@ from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 
 from .models import Company, CompanyToken, Item, Salesman, ItemVariant, Purchase, Sale
+from .models import normalize_phone
+
 from .serializers import (
     CompanySignupSerializer,
     CompanyLoginSerializer,
@@ -41,7 +43,7 @@ class LoginView(APIView):
         serializer = CompanyLoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        phone = serializer.validated_data["phone"].strip()
+        phone = normalize_phone(serializer.validated_data["phone"].strip())
         password = serializer.validated_data["password"]
 
         try:
