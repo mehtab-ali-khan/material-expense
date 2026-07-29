@@ -224,3 +224,5 @@ __marimo__/
 EOF
 prod/.env
 todo.txt
+# PWA dev artifacts
+dev-dist/
