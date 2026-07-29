@@ -71,6 +71,7 @@ function ContactPage() {
                                 loading={loading}
                                 size="sm"
                                 h="36px"
+                                w="full"
                                 px={4.5}
                                 borderRadius="full"
                                 bg="black"

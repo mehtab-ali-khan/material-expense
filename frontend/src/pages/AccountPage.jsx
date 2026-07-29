@@ -35,7 +35,7 @@ function AccountPage() {
                             <Text fontSize="12px" color="gray.500" fontWeight="semibold">
                                 Company
                             </Text>
-                            <Text fontSize="18px" color="black" fontWeight="semibold">
+                            <Text fontSize="18px" color="black">
                                 {companyName}
                             </Text>
                         </Box>
@@ -47,6 +47,7 @@ function AccountPage() {
                         size="sm"
                         h="36px"
                         px={4.5}
+                        w="full"
                         borderRadius="full"
                         bg="black"
                         color="white"
