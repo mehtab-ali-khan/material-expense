@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Box, Heading, Text, VStack, Button, HStack } from '@chakra-ui/react'
+import { Box, Heading, Text, VStack, Button, HStack, Input } from '@chakra-ui/react'
 import { getItems } from '../api/items'
 import { getSalesmen } from '../api/salesmen'
 import { getVariants } from '../api/variants'
@@ -36,6 +36,7 @@ function PurchasePage() {
     const [showForm, setShowForm] = useState(false)
     const [loading, setLoading] = useState(true)
     const [toast, setToast] = useState('')
+    const [dateFilter, setDateFilter] = useState('')
 
     useEffect(() => {
         loadAll()
@@ -48,7 +49,7 @@ function PurchasePage() {
                 getItems(),
                 getSalesmen(),
                 getVariants(),
-                getPurchases(),
+                getPurchases(dateFilter ? { date: dateFilter } : {}),
             ])
             setItems(itemsRes.data)
             setSalesmen(salesmenRes.data)
@@ -64,6 +65,9 @@ function PurchasePage() {
             setLoading(false)
         }
     }
+    useEffect(() => {
+        loadAll()
+    }, [dateFilter])
 
     const handleSaved = () => {
         setShowForm(false)
@@ -104,22 +108,31 @@ function PurchasePage() {
                 </Box>
 
                 {!showForm && (
-                    <Box
-                        as="button"
-                        type="button"
-                        mb={3}
-                        px={3}
-                        py={2}
-                        border="1px solid"
-                        borderColor="gray.200"
-                        borderRadius="full"
-                        bg="white"
-                        color="black"
-                        fontSize="13px"
-                        fontWeight="medium"
-                    >
-                        Today · {todayLabel}
-                    </Box>
+                    <HStack mb={3} gap={2}>
+                        <Input
+                            type="date"
+                            value={dateFilter}
+                            onChange={(e) => setDateFilter(e.target.value)}
+                            bg="white"
+                            border="1px solid"
+                            borderColor="gray.200"
+                            borderRadius="full"
+                            fontSize="13px"
+                            minH="38px"
+                            w="auto"
+                            color="black"
+                        />
+                        {dateFilter && (
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setDateFilter('')}
+                                fontSize="13px"
+                            >
+                                Clear
+                            </Button>
+                        )}
+                    </HStack>
                 )}
 
                 {showForm ? (

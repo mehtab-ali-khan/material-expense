@@ -108,15 +108,43 @@ class PurchaseListCreateView(generics.ListCreateAPIView):
     serializer_class = PurchaseSerializer
 
     def get_queryset(self):
-        return Purchase.objects.filter(
-            variant__item__company=self.request.user
-        ).order_by("-created_at")
+        qs = Purchase.objects.filter(variant__item__company=self.request.user).order_by(
+            "-created_at"
+        )
+
+        date = self.request.query_params.get("date")
+        date_from = self.request.query_params.get("date_from")
+        date_to = self.request.query_params.get("date_to")
+
+        if date:
+            qs = qs.filter(date=date)
+        else:
+            if date_from:
+                qs = qs.filter(date__gte=date_from)
+            if date_to:
+                qs = qs.filter(date__lte=date_to)
+
+        return qs
 
 
 class SaleListCreateView(generics.ListCreateAPIView):
     serializer_class = SaleSerializer
 
     def get_queryset(self):
-        return Sale.objects.filter(variant__item__company=self.request.user).order_by(
+        qs = Sale.objects.filter(variant__item__company=self.request.user).order_by(
             "-created_at"
         )
+
+        date = self.request.query_params.get("date")
+        date_from = self.request.query_params.get("date_from")
+        date_to = self.request.query_params.get("date_to")
+
+        if date:
+            qs = qs.filter(date=date)
+        else:
+            if date_from:
+                qs = qs.filter(date__gte=date_from)
+            if date_to:
+                qs = qs.filter(date__lte=date_to)
+
+        return qs
