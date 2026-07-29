@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Box, Button, Heading, Textarea, VStack } from '@chakra-ui/react'
+import { Box, Button, Heading, Textarea, VStack, HStack } from '@chakra-ui/react'
 import AppLayout from '../components/AppLayout'
 import { SaveIcon } from '../components/Icons'
 import FormMessage from '../components/FormMessage'
@@ -65,19 +65,24 @@ function ContactPage() {
 
                         {error && <FormMessage tone="error">{error}</FormMessage>}
 
-                        <Button
-                            type="submit"
-                            loading={loading}
-                            minH="52px"
-                            borderRadius="xl"
-                            bg="black"
-                            color="white"
-                            fontWeight="semibold"
-                            _hover={{ bg: 'gray.800' }}
-                        >
-                            <SaveIcon />
-                            Send
-                        </Button>
+                        <HStack justify="center">
+                            <Button
+                                type="submit"
+                                loading={loading}
+                                size="sm"
+                                h="36px"
+                                px={4.5}
+                                borderRadius="full"
+                                bg="black"
+                                color="white"
+                                fontWeight="semibold"
+                                fontSize="14px"
+                                _hover={{ bg: 'gray.800' }}
+                            >
+                                <SaveIcon boxSize={4} />
+                                Send
+                            </Button>
+                        </HStack>
                     </VStack>
                 </form>
             </Box>

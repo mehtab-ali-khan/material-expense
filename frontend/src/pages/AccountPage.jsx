@@ -1,4 +1,4 @@
-import { Box, Button, Heading, Text, VStack } from '@chakra-ui/react'
+import { Box, Button, Heading, Text, VStack, HStack } from '@chakra-ui/react'
 import { useNavigate } from 'react-router-dom'
 import AppLayout from '../components/AppLayout'
 import { LogOutIcon } from '../components/Icons'
@@ -39,21 +39,26 @@ function AccountPage() {
                                 {companyName}
                             </Text>
                         </Box>
-
-                        <Button
-                            minH="52px"
-                            borderRadius="xl"
-                            bg="black"
-                            color="white"
-                            fontWeight="semibold"
-                            _hover={{ bg: 'gray.800' }}
-                            onClick={handleLogout}
-                        >
-                            <LogOutIcon />
-                            Log out
-                        </Button>
                     </VStack>
                 </Box>
+
+                <HStack justify="center" mt={4}>
+                    <Button
+                        size="sm"
+                        h="36px"
+                        px={4.5}
+                        borderRadius="full"
+                        bg="black"
+                        color="white"
+                        fontWeight="semibold"
+                        fontSize="14px"
+                        _hover={{ bg: 'gray.800' }}
+                        onClick={handleLogout}
+                    >
+                        <LogOutIcon boxSize={4} />
+                        Log out
+                    </Button>
+                </HStack>
             </Box>
         </AppLayout>
     )
