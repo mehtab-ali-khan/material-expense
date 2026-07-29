@@ -8,6 +8,7 @@ import AppLayout from '../components/AppLayout'
 import { PlusIcon, XIcon } from '../components/Icons'
 import PageLoader from '../components/PageLoader'
 import ToastMessage from '../components/ToastMessage'
+import DateFilterBar from '../components/DateFilterBar'
 
 const formatDisplayDate = (date) => {
     if (!date) return ''
@@ -33,6 +34,8 @@ function SalePage() {
     const [showForm, setShowForm] = useState(false)
     const [loading, setLoading] = useState(true)
     const [toast, setToast] = useState('')
+    const [dateFilter, setDateFilter] = useState('')
+
 
     useEffect(() => {
         loadAll()
@@ -44,7 +47,7 @@ function SalePage() {
             const [itemsRes, salesmenRes, salesRes] = await Promise.all([
                 getItems(),
                 getSalesmen(),
-                getSales(),
+                getSales(dateFilter ? { date: dateFilter } : {}),
             ])
             setItems(itemsRes.data)
             setSalesmen(salesmenRes.data)
@@ -55,6 +58,9 @@ function SalePage() {
             setLoading(false)
         }
     }
+    useEffect(() => {
+        loadAll()
+    }, [dateFilter])
 
     const handleSaved = () => {
         setShowForm(false)
@@ -93,22 +99,7 @@ function SalePage() {
                 </Box>
 
                 {!showForm && (
-                    <Box
-                        as="button"
-                        type="button"
-                        mb={3}
-                        px={3}
-                        py={2}
-                        border="1px solid"
-                        borderColor="gray.200"
-                        borderRadius="full"
-                        bg="white"
-                        color="black"
-                        fontSize="13px"
-                        fontWeight="medium"
-                    >
-                        Today · {todayLabel}
-                    </Box>
+                    <DateFilterBar value={dateFilter} onChange={setDateFilter} />
                 )}
 
                 {showForm ? (

@@ -9,6 +9,8 @@ import AppLayout from '../components/AppLayout'
 import { PlusIcon, XIcon } from '../components/Icons'
 import PageLoader from '../components/PageLoader'
 import ToastMessage from '../components/ToastMessage'
+import DateFilterBar from '../components/DateFilterBar'
+
 
 const formatDisplayDate = (date) => {
     if (!date) return ''
@@ -108,31 +110,7 @@ function PurchasePage() {
                 </Box>
 
                 {!showForm && (
-                    <HStack mb={3} gap={2}>
-                        <Input
-                            type="date"
-                            value={dateFilter}
-                            onChange={(e) => setDateFilter(e.target.value)}
-                            bg="white"
-                            border="1px solid"
-                            borderColor="gray.200"
-                            borderRadius="full"
-                            fontSize="13px"
-                            minH="38px"
-                            w="auto"
-                            color="black"
-                        />
-                        {dateFilter && (
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => setDateFilter('')}
-                                fontSize="13px"
-                            >
-                                Clear
-                            </Button>
-                        )}
-                    </HStack>
+                    <DateFilterBar value={dateFilter} onChange={setDateFilter} />
                 )}
 
                 {showForm ? (
