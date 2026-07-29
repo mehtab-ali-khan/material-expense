@@ -3,7 +3,7 @@ from rest_framework import serializers
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.exceptions import ValidationError as DRFValidationError
 
-from .models import Company, Item, Salesman, ItemVariant, Purchase, Sale
+from .models import Company, ContactMessage, Item, Salesman, ItemVariant, Purchase, Sale
 
 
 class CompanySignupSerializer(serializers.ModelSerializer):
@@ -188,3 +188,10 @@ class SaleSerializer(serializers.ModelSerializer):
             raise DRFValidationError(e.message)
 
         return sale
+
+
+class ContactMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContactMessage
+        fields = ["id", "message", "created_at"]
+        read_only_fields = ["created_at"]

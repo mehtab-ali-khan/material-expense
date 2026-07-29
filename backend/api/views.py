@@ -9,6 +9,7 @@ from .models import normalize_phone
 from .serializers import (
     CompanySignupSerializer,
     CompanyLoginSerializer,
+    ContactMessageSerializer,
     ItemSerializer,
     SalesmanSerializer,
     ItemVariantSerializer,
@@ -150,3 +151,10 @@ class SaleListCreateView(generics.ListCreateAPIView):
                 qs = qs.filter(date__lte=date_to)
 
         return qs
+
+
+class ContactMessageCreateView(generics.CreateAPIView):
+    serializer_class = ContactMessageSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user)

@@ -204,3 +204,14 @@ class Sale(models.Model):
             self.purchase_price_snapshot = self.variant.avg_purchase_price
             self.variant.record_sale(self.quantity)
         super().save(*args, **kwargs)
+
+
+class ContactMessage(models.Model):
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE, related_name="contact_messages"
+    )
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.company.name}: {self.message[:40]}"
