@@ -5,11 +5,9 @@ import { LogOutIcon } from '../components/Icons'
 import { useAuth } from '../context/AuthContext'
 
 function AccountPage() {
-    const { companyName, logout } = useAuth()
+    const { companyName, profile, logout } = useAuth()
     const navigate = useNavigate()
-    const firstName = window.localStorage.getItem('profile_first_name') || ''
-    const lastName = window.localStorage.getItem('profile_last_name') || ''
-    const phone = window.localStorage.getItem('profile_phone') || ''
+    const { firstName, lastName, phone } = profile
 
     const handleLogout = () => {
         logout()

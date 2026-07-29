@@ -42,12 +42,9 @@ function SignupPage() {
         }
         setLoading(true)
         try {
-            window.localStorage.setItem('profile_first_name', firstName)
-            window.localStorage.setItem('profile_last_name', lastName)
-            window.localStorage.setItem('profile_phone', phone)
-            await signup(name, password)
+            await signup(name, password, firstName, lastName, phone)
             const res = await login(name, password)
-            loginSuccess(res.data.token, res.data.company_name)
+            loginSuccess(res.data.token, res.data)
             navigate('/purchase')
         } catch {
             setError('Could not sign up. Company name may already be taken.')

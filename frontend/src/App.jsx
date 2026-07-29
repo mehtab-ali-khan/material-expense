@@ -7,9 +7,11 @@ import SalePage from './pages/SalePage'
 import StockPage from './pages/StockPage'
 import ProfitPage from './pages/ProfitPage'
 import AccountPage from './pages/AccountPage'
+import PageLoader from './components/PageLoader'
 
 function PrivateRoute({ children }) {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, loading } = useAuth()
+  if (loading) return <PageLoader />
   return isAuthenticated ? children : <Navigate to="/login" />
 }
 

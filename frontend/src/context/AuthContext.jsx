@@ -1,24 +1,52 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useState, useEffect } from 'react'
+import { getMe } from '../api/auth'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-    const [companyName, setCompanyName] = useState(localStorage.getItem('companyName'))
+    const [companyName, setCompanyName] = useState(null)
+    const [profile, setProfile] = useState({ firstName: '', lastName: '', phone: '' })
+    const [loading, setLoading] = useState(true)
 
-    const loginSuccess = (token, name) => {
+    useEffect(() => {
+        const token = localStorage.getItem('token')
+        if (!token) {
+            setLoading(false)
+            return
+        }
+        getMe()
+            .then((res) => {
+                setCompanyName(res.data.company_name)
+                setProfile({
+                    firstName: res.data.first_name || '',
+                    lastName: res.data.last_name || '',
+                    phone: res.data.phone || '',
+                })
+            })
+            .catch(() => {
+                localStorage.removeItem('token')
+            })
+            .finally(() => setLoading(false))
+    }, [])
+
+    const loginSuccess = (token, data) => {
         localStorage.setItem('token', token)
-        localStorage.setItem('companyName', name)
-        setCompanyName(name)
+        setCompanyName(data.company_name)
+        setProfile({
+            firstName: data.first_name || '',
+            lastName: data.last_name || '',
+            phone: data.phone || '',
+        })
     }
 
     const logout = () => {
         localStorage.removeItem('token')
-        localStorage.removeItem('companyName')
         setCompanyName(null)
+        setProfile({ firstName: '', lastName: '', phone: '' })
     }
 
     return (
-        <AuthContext.Provider value={{ companyName, isAuthenticated: !!companyName, loginSuccess, logout }}>
+        <AuthContext.Provider value={{ companyName, profile, isAuthenticated: !!companyName, loading, loginSuccess, logout }}>
             {children}
         </AuthContext.Provider>
     )

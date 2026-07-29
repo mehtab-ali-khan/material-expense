@@ -35,7 +35,7 @@ function LoginPage() {
         setLoading(true)
         try {
             const res = await login(name, password)
-            loginSuccess(res.data.token, res.data.company_name)
+            loginSuccess(res.data.token, res.data)
             navigate('/purchase')
         } catch {
             setError('Invalid company name or password.')
