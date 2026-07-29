@@ -7,6 +7,8 @@ import SalePage from './pages/SalePage'
 import StockPage from './pages/StockPage'
 import ProfitPage from './pages/ProfitPage'
 import AccountPage from './pages/AccountPage'
+import ContactPage from './pages/ContactPage'
+import QuotationPage from './pages/QuotationPage'
 import PageLoader from './components/PageLoader'
 
 function PrivateRoute({ children }) {
@@ -30,6 +32,8 @@ function AppRoutes() {
       <Route path="/stock" element={<PrivateRoute><StockPage /></PrivateRoute>} />
       <Route path="/profit" element={<PrivateRoute><ProfitPage /></PrivateRoute>} />
       <Route path="/account" element={<PrivateRoute><AccountPage /></PrivateRoute>} />
+      <Route path="/contact" element={<PrivateRoute><ContactPage /></PrivateRoute>} />
+      <Route path="/quotation" element={<PrivateRoute><QuotationPage /></PrivateRoute>} />
       <Route path="*" element={<Navigate to="/login" />} />
     </Routes>
   )

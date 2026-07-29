@@ -1,7 +1,18 @@
+import { useState } from 'react'
 import { Box, HStack, VStack, Text } from '@chakra-ui/react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { ArrowUpRightIcon, PackageIcon, PlusIcon, TrendingUpIcon, UserIcon } from './Icons'
+import {
+    ArrowUpRightIcon,
+    PackageIcon,
+    PlusIcon,
+    TrendingUpIcon,
+    UserIcon,
+    MoreIcon,
+    MailIcon,
+    FileTextIcon,
+    XIcon,
+} from './Icons'
 
 const icons = {
     purchase: <PlusIcon />,
@@ -9,19 +20,33 @@ const icons = {
     stock: <PackageIcon />,
     profit: <TrendingUpIcon />,
     account: <UserIcon />,
+    contact: <MailIcon />,
+    quotation: <FileTextIcon />,
 }
 
-const navItems = [
+const mainNavItems = [
     { to: '/purchase', label: 'Purchase', key: 'purchase' },
     { to: '/sale', label: 'Sale', key: 'sale' },
     { to: '/stock', label: 'Stock', key: 'stock' },
     { to: '/profit', label: 'Profit', key: 'profit' },
+]
+
+const sidebarExtraItems = [
     { to: '/account', label: 'Account', key: 'account' },
+    { to: '/contact', label: 'Contact us', key: 'contact' },
+    { to: '/quotation', label: 'Quotations', key: 'quotation' },
+]
+
+const moreSheetItems = [
+    { to: '/account', label: 'Account', key: 'account' },
+    { to: '/contact', label: 'Contact us', key: 'contact' },
+    { to: '/quotation', label: 'Quotations', key: 'quotation' },
 ]
 
 function NavBar({ hideBottomNav = false }) {
     const { companyName, logout } = useAuth()
     const navigate = useNavigate()
+    const [moreOpen, setMoreOpen] = useState(false)
 
     const handleLogout = () => {
         logout()
@@ -53,7 +78,28 @@ function NavBar({ hideBottomNav = false }) {
                 </Text>
 
                 <VStack align="stretch" gap={1}>
-                    {navItems.map((item) => (
+                    {mainNavItems.map((item) => (
+                        <NavLink key={item.to} to={item.to}>
+                            {({ isActive }) => (
+                                <HStack
+                                    px={3}
+                                    py={2.5}
+                                    borderRadius="lg"
+                                    bg={isActive ? 'gray.100' : 'transparent'}
+                                    color={isActive ? 'black' : 'gray.600'}
+                                    fontWeight={isActive ? 'semibold' : 'medium'}
+                                    _hover={{ bg: isActive ? 'gray.100' : 'gray.50' }}
+                                >
+                                    <Box display="flex" alignItems="center">{icons[item.key]}</Box>
+                                    <Text fontSize="sm" fontWeight={isActive ? 'semibold' : 'medium'}>{item.label}</Text>
+                                </HStack>
+                            )}
+                        </NavLink>
+                    ))}
+
+                    <Box h="1px" bg="gray.100" my={2} />
+
+                    {sidebarExtraItems.map((item) => (
                         <NavLink key={item.to} to={item.to}>
                             {({ isActive }) => (
                                 <HStack
@@ -101,40 +147,125 @@ function NavBar({ hideBottomNav = false }) {
                     </HStack>
                 </Box>
             </Box>
+
             {/* Mobile bottom tab bar */}
-            {!hideBottomNav && <Box
-                display={{ base: 'flex', md: 'none' }}
-                position="fixed"
-                bottom={0}
-                left={0}
-                right={0}
-                bg="white"
-                borderTop="1px solid"
-                borderColor="gray.200"
-                justifyContent="space-around"
-                pt={2}
-                pb="calc(8px + env(safe-area-inset-bottom))"
-                zIndex={30}
-            >
-                {navItems.map((item) => (
-                    <NavLink key={item.to} to={item.to} style={{ flex: 1 }}>
-                        {({ isActive }) => (
-                            <VStack
-                                gap={0.5}
-                                py={1}
-                                px={2}
-                                minH="48px"
-                                borderRadius="lg"
-                                bg={isActive ? 'gray.100' : 'transparent'}
-                                color={isActive ? 'black' : 'gray.400'}
+            {!hideBottomNav && (
+                <Box
+                    display={{ base: 'flex', md: 'none' }}
+                    position="fixed"
+                    bottom={0}
+                    left={0}
+                    right={0}
+                    bg="white"
+                    borderTop="1px solid"
+                    borderColor="gray.200"
+                    justifyContent="space-around"
+                    pt={2}
+                    pb="calc(8px + env(safe-area-inset-bottom))"
+                    zIndex={30}
+                >
+                    {mainNavItems.map((item) => (
+                        <NavLink key={item.to} to={item.to} style={{ flex: 1 }}>
+                            {({ isActive }) => (
+                                <VStack
+                                    gap={0.5}
+                                    py={1}
+                                    px={2}
+                                    minH="48px"
+                                    borderRadius="lg"
+                                    bg={isActive ? 'gray.100' : 'transparent'}
+                                    color={isActive ? 'black' : 'gray.400'}
+                                >
+                                    <Box display="flex" alignItems="center" justifyContent="center">{icons[item.key]}</Box>
+                                    <Text fontSize="10px" fontWeight={isActive ? 'semibold' : 'medium'}>{item.label}</Text>
+                                </VStack>
+                            )}
+                        </NavLink>
+                    ))}
+
+                    <Box
+                        as="button"
+                        type="button"
+                        flex="1"
+                        onClick={() => setMoreOpen(true)}
+                    >
+                        <VStack
+                            gap={0.5}
+                            py={1}
+                            px={2}
+                            minH="48px"
+                            borderRadius="lg"
+                            color={moreOpen ? 'black' : 'gray.400'}
+                            bg={moreOpen ? 'gray.100' : 'transparent'}
+                        >
+                            <Box display="flex" alignItems="center" justifyContent="center"><MoreIcon /></Box>
+                            <Text fontSize="10px" fontWeight="medium">More</Text>
+                        </VStack>
+                    </Box>
+                </Box>
+            )}
+
+            {/* Mobile "More" bottom sheet */}
+            {moreOpen && (
+                <Box
+                    display={{ base: 'block', md: 'none' }}
+                    position="fixed"
+                    inset={0}
+                    bg="blackAlpha.500"
+                    zIndex={90}
+                    onClick={() => setMoreOpen(false)}
+                >
+                    <Box
+                        position="absolute"
+                        left={0}
+                        right={0}
+                        bottom={0}
+                        bg="white"
+                        borderTopRadius="2xl"
+                        px={4}
+                        pt={3}
+                        pb="calc(24px + env(safe-area-inset-bottom))"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <HStack justify="space-between" align="center" mb={3}>
+                            <Text fontSize="16px" fontWeight="semibold" color="black">
+                                More
+                            </Text>
+                            <Box
+                                as="button"
+                                type="button"
+                                onClick={() => setMoreOpen(false)}
+                                p={1}
+                                color="gray.500"
                             >
-                                <Box display="flex" alignItems="center" justifyContent="center">{icons[item.key]}</Box>
-                                <Text fontSize="10px" fontWeight={isActive ? 'semibold' : 'medium'}>{item.label}</Text>
-                            </VStack>
-                        )}
-                    </NavLink>
-                ))}
-            </Box>}
+                                <XIcon size={18} />
+                            </Box>
+                        </HStack>
+
+                        <VStack align="stretch" gap={1}>
+                            {moreSheetItems.map((item) => (
+                                <NavLink key={item.to} to={item.to} onClick={() => setMoreOpen(false)}>
+                                    {({ isActive }) => (
+                                        <HStack
+                                            px={3}
+                                            py={3}
+                                            minH="52px"
+                                            borderRadius="lg"
+                                            bg={isActive ? 'gray.100' : 'transparent'}
+                                            color={isActive ? 'black' : 'gray.700'}
+                                        >
+                                            <Box display="flex" alignItems="center">{icons[item.key]}</Box>
+                                            <Text fontSize="15px" fontWeight={isActive ? 'semibold' : 'medium'}>
+                                                {item.label}
+                                            </Text>
+                                        </HStack>
+                                    )}
+                                </NavLink>
+                            ))}
+                        </VStack>
+                    </Box>
+                </Box>
+            )}
         </>
     )
 }
