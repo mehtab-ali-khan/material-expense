@@ -15,6 +15,19 @@ from .serializers import (
 )
 
 
+class MeView(APIView):
+    def get(self, request):
+        company = request.user
+        return Response(
+            {
+                "company_name": company.name,
+                "first_name": company.first_name,
+                "last_name": company.last_name,
+                "phone": company.phone,
+            }
+        )
+
+
 class SignupView(generics.CreateAPIView):
     permission_classes = [AllowAny]
     queryset = Company.objects.all()
@@ -47,7 +60,15 @@ class LoginView(APIView):
 
         token, _ = CompanyToken.objects.get_or_create(company=company)
 
-        return Response({"token": token.key, "company_name": company.name})
+        return Response(
+            {
+                "token": token.key,
+                "company_name": company.name,
+                "first_name": company.first_name,
+                "last_name": company.last_name,
+                "phone": company.phone,
+            }
+        )
 
 
 class ItemListCreateView(generics.ListCreateAPIView):

@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    MeView,
     SignupView,
     LoginView,
     ItemListCreateView,
@@ -11,6 +12,7 @@ from .views import (
 )
 
 urlpatterns = [
+    path("me/", MeView.as_view(), name="me"),
     path("signup/", SignupView.as_view(), name="signup"),
     path("login/", LoginView.as_view(), name="login"),
     path("items/", ItemListCreateView.as_view(), name="item-list"),

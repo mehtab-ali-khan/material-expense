@@ -9,6 +9,9 @@ from django.core.exceptions import ValidationError
 class Company(models.Model):
     name = models.CharField(max_length=255, unique=True)
     password = models.CharField(max_length=255)
+    first_name = models.CharField(max_length=150, blank=True, default="")
+    last_name = models.CharField(max_length=150, blank=True, default="")
+    phone = models.CharField(max_length=32, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
 
     @property

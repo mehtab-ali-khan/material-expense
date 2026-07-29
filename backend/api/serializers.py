@@ -9,11 +9,16 @@ from .models import Company, Item, Salesman, ItemVariant, Purchase, Sale
 class CompanySignupSerializer(serializers.ModelSerializer):
     class Meta:
         model = Company
-        fields = ["id", "name", "password"]
+        fields = ["id", "name", "password", "first_name", "last_name", "phone"]
         extra_kwargs = {"password": {"write_only": True}}
 
     def create(self, validated_data):
-        company = Company(name=validated_data["name"])
+        company = Company(
+            name=validated_data["name"],
+            first_name=validated_data.get("first_name", ""),
+            last_name=validated_data.get("last_name", ""),
+            phone=validated_data.get("phone", ""),
+        )
         company.set_password(validated_data["password"])
         company.save()
         return company
@@ -56,7 +61,9 @@ class PurchaseSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(write_only=True)
     length = serializers.CharField(write_only=True)
     measurement = serializers.CharField(write_only=True)
-    salesman_name = serializers.CharField(write_only=True, required=False, allow_blank=True, allow_null=True)
+    salesman_name = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, allow_null=True
+    )
 
     class Meta:
         model = Purchase
@@ -120,7 +127,9 @@ class SaleSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(source="variant.item.name", read_only=True)
     length = serializers.CharField(source="variant.length", read_only=True)
     measurement = serializers.CharField(source="variant.measurement", read_only=True)
-    salesman_name = serializers.CharField(write_only=True, required=False, allow_blank=True, allow_null=True)
+    salesman_name = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, allow_null=True
+    )
     profit = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
     class Meta:
