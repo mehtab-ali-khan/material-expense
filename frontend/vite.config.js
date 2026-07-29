@@ -3,13 +3,6 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-<<<<<<< HEAD
-  plugins: [react()],
-  server: {
-    host: '0.0.0.0',
-  },
-})
-=======
   plugins: [
     react(),
     VitePWA({
@@ -46,4 +39,3 @@ export default defineConfig({
     }),
   ],
 })
->>>>>>> 793192d (add pwa support with manifest and service worker via vite-plugin-pwa)
