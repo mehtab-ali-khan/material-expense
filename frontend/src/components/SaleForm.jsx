@@ -110,11 +110,11 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
         if (!selectedLength) return 'Select length'
         if (!selectedMeasurement || !selectedVariant) return 'Select measurement'
         if (Number(selectedVariant.current_stock_qty) <= 0) return 'No stock available'
-        if (!partyName.trim()) return 'Select company'
-        if (!partyContact.trim()) return 'Enter company contact'
         if (!quantity) return 'Enter quantity'
         if (Number(quantity) > Number(selectedVariant.current_stock_qty)) return 'Not enough stock'
         if (!salePrice) return 'Enter sale price'
+        if (!partyName.trim()) return 'Select company'
+        if (!partyContact.trim()) return 'Enter company contact'
         if (!date) return 'Select date'
         return ''
     }, [date, partyContact, partyName, quantity, salePrice, selectedItem, selectedLength, selectedMeasurement, selectedVariant])
@@ -228,7 +228,7 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
                                 options={measurementOptions}
                                 value={selectedMeasurement || ''}
                                 onSelect={handleMeasurementSelect}
-                                onCommit={() => partyRef.current?.focus()}
+                                onCommit={() => quantityRef.current?.focus()}
                                 onFocus={() => handleFieldFocus(measurementRef)}
                                 onBlur={handleFieldBlur}
                                 enterKeyHint="next"
@@ -249,38 +249,6 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
                             </Badge>
                         </Box>
                     )}
-
-                    <Field label="Company">
-                        <SearchableDropdown
-                            inputRef={partyRef}
-                            options={parties}
-                            value={partyName}
-                            onChange={setPartyName}
-                            onSelect={handlePartySelect}
-                            onCreate={handlePartyCreate}
-                            onCommit={() => partyContactRef.current?.focus()}
-                            onFocus={() => handleFieldFocus(partyRef)}
-                            onBlur={handleFieldBlur}
-                            enterKeyHint="next"
-                            placeholder="Type to search company"
-                        />
-                    </Field>
-
-                    <Field label="Company contact">
-                        <SearchableDropdown
-                            inputRef={partyContactRef}
-                            options={partyContactOptions}
-                            value={partyContact}
-                            onChange={setPartyContact}
-                            onSelect={(opt) => setPartyContact(opt.name)}
-                            onCreate={(text) => setPartyContact(text)}
-                            onCommit={() => quantityRef.current?.focus()}
-                            onFocus={() => handleFieldFocus(partyContactRef)}
-                            onBlur={handleFieldBlur}
-                            enterKeyHint="next"
-                            placeholder="Enter contact number"
-                        />
-                    </Field>
 
                     <SimpleGrid columns={1} gap={4}>
                         <Field label="Qty">
@@ -335,10 +303,45 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
                             onChange={setSalesmanName}
                             onSelect={(opt) => setSalesmanName(opt.name)}
                             onCreate={(text) => setSalesmanName(text)}
+                            onCommit={() => partyRef.current?.focus()}
                             onFocus={() => handleFieldFocus(salesmanRef)}
                             onBlur={handleFieldBlur}
-                            enterKeyHint="done"
+                            enterKeyHint="next"
                             placeholder="Optional"
+                        />
+                    </Field>
+
+                    <Field label="Company">
+                        <SearchableDropdown
+                            inputRef={partyRef}
+                            options={parties}
+                            value={partyName}
+                            onChange={setPartyName}
+                            onSelect={handlePartySelect}
+                            onCreate={handlePartyCreate}
+                            onCommit={() => partyContactRef.current?.focus()}
+                            onFocus={() => handleFieldFocus(partyRef)}
+                            onBlur={handleFieldBlur}
+                            enterKeyHint="next"
+                            placeholder="Type to search company"
+                        />
+                    </Field>
+
+                    <Field label="Contact">
+                        <SearchableDropdown
+                            inputRef={partyContactRef}
+                            options={partyContactOptions}
+                            value={partyContact}
+                            onChange={(val) => setPartyContact(val.replace(/[^\d+]/g, ''))}
+                            onSelect={(opt) => setPartyContact(opt.name)}
+                            onCreate={(text) => setPartyContact(text)}
+                            onCommit={() => partyContactRef.current?.blur()}
+                            onFocus={() => handleFieldFocus(partyContactRef)}
+                            onBlur={handleFieldBlur}
+                            enterKeyHint="done"
+                            placeholder="Enter contact number"
+                            type="text"
+                            inputMode="numeric"
                         />
                     </Field>
 

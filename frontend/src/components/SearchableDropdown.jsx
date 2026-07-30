@@ -24,6 +24,8 @@ function SearchableDropdown({
     onFocus,
     onBlur,
     enterKeyHint = 'next',
+    type = 'text',
+    inputMode,
 }) {
     const [isOpen, setIsOpen] = useState(false)
     const containerRef = useRef(null)
@@ -79,6 +81,8 @@ function SearchableDropdown({
         <Box position="relative" ref={containerRef} w="100%">
             <Input
                 ref={inputRef}
+                type={type}
+                inputMode={inputMode}
                 value={value || ''}
                 onChange={(e) => {
                     onChange(e.target.value)

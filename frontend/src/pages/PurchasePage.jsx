@@ -42,7 +42,7 @@ function PurchasePage() {
     const [toast, setToast] = useState('')
 
     const todayISO = () => new Date().toISOString().slice(0, 10)
-    const [dateFilter, setDateFilter] = useState(todayISO())
+    const [dateFilter, setDateFilter] = useState()
 
     useEffect(() => {
         loadAll()

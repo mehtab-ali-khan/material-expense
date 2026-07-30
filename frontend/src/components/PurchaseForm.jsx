@@ -81,10 +81,10 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, measurementOpti
         if (!form.itemName.trim()) return 'Select item first'
         if (!form.length.trim()) return 'Select length'
         if (!form.measurement.trim()) return 'Select measurement'
-        if (!form.partyName.trim()) return 'Select company'
-        if (!form.partyContact.trim()) return 'Enter company contact'
         if (!form.quantity) return 'Enter quantity'
         if (!form.price) return 'Enter price'
+        if (!form.partyName.trim()) return 'Select company'
+        if (!form.partyContact.trim()) return 'Enter company contact'
         if (!form.date) return 'Select date'
         return ''
     }, [form])
@@ -185,7 +185,7 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, measurementOpti
                                 onChange={(val) => updateField('measurement', val)}
                                 onSelect={(opt) => updateField('measurement', opt.name)}
                                 onCreate={(text) => updateField('measurement', text)}
-                                onCommit={() => partyRef.current?.focus()}
+                                onCommit={() => quantityRef.current?.focus()}
                                 onFocus={() => handleFieldFocus(measurementRef)}
                                 onBlur={handleFieldBlur}
                                 enterKeyHint="next"
@@ -193,38 +193,6 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, measurementOpti
                             />
                         </Field>
                     </SimpleGrid>
-
-                    <Field label="Company">
-                        <SearchableDropdown
-                            inputRef={partyRef}
-                            options={parties}
-                            value={form.partyName}
-                            onChange={(val) => updateField('partyName', val)}
-                            onSelect={handlePartySelect}
-                            onCreate={handlePartyCreate}
-                            onCommit={() => partyContactRef.current?.focus()}
-                            onFocus={() => handleFieldFocus(partyRef)}
-                            onBlur={handleFieldBlur}
-                            enterKeyHint="next"
-                            placeholder="Type to search company"
-                        />
-                    </Field>
-
-                    <Field label="Company contact">
-                        <SearchableDropdown
-                            inputRef={partyContactRef}
-                            options={partyContactOptions}
-                            value={form.partyContact}
-                            onChange={(val) => updateField('partyContact', val)}
-                            onSelect={(opt) => updateField('partyContact', opt.name)}
-                            onCreate={(text) => updateField('partyContact', text)}
-                            onCommit={() => quantityRef.current?.focus()}
-                            onFocus={() => handleFieldFocus(partyContactRef)}
-                            onBlur={handleFieldBlur}
-                            enterKeyHint="next"
-                            placeholder="Enter contact number"
-                        />
-                    </Field>
 
                     <SimpleGrid columns={1} gap={4}>
                         <Field label="Qty">
@@ -259,10 +227,10 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, measurementOpti
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
                                         e.preventDefault()
-                                        priceRef.current?.blur()
+                                        salesmanRef.current?.focus()
                                     }
                                 }}
-                                enterKeyHint="done"
+                                enterKeyHint="next"
                                 placeholder="0"
                                 {...fieldInputStyles}
                             />
@@ -277,10 +245,45 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, measurementOpti
                             onChange={(val) => updateField('salesmanName', val)}
                             onSelect={(opt) => updateField('salesmanName', opt.name)}
                             onCreate={(text) => updateField('salesmanName', text)}
+                            onCommit={() => partyRef.current?.focus()}
                             onFocus={() => handleFieldFocus(salesmanRef)}
                             onBlur={handleFieldBlur}
-                            enterKeyHint="done"
+                            enterKeyHint="next"
                             placeholder="Optional"
+                        />
+                    </Field>
+
+                    <Field label="Company">
+                        <SearchableDropdown
+                            inputRef={partyRef}
+                            options={parties}
+                            value={form.partyName}
+                            onChange={(val) => updateField('partyName', val)}
+                            onSelect={handlePartySelect}
+                            onCreate={handlePartyCreate}
+                            onCommit={() => partyContactRef.current?.focus()}
+                            onFocus={() => handleFieldFocus(partyRef)}
+                            onBlur={handleFieldBlur}
+                            enterKeyHint="next"
+                            placeholder="Type to search company"
+                        />
+                    </Field>
+
+                    <Field label="Contact">
+                        <SearchableDropdown
+                            inputRef={partyContactRef}
+                            options={partyContactOptions}
+                            value={form.partyContact}
+                            onChange={(val) => updateField('partyContact', val.replace(/[^\d+]/g, ''))}
+                            onSelect={(opt) => updateField('partyContact', opt.name)}
+                            onCreate={(text) => updateField('partyContact', text)}
+                            onCommit={() => partyContactRef.current?.blur()}
+                            onFocus={() => handleFieldFocus(partyContactRef)}
+                            onBlur={handleFieldBlur}
+                            enterKeyHint="done"
+                            placeholder="Enter contact number"
+                            type="text"
+                            inputMode="numeric"
                         />
                     </Field>
 

@@ -3,7 +3,7 @@ import { Box, HStack, Input, Text } from '@chakra-ui/react'
 import { CalendarIcon, XIcon } from './Icons'
 
 const formatLabel = (dateStr) => {
-    if (!dateStr) return 'All dates'
+    if (!dateStr) return 'Select date'
     const parsed = new Date(`${dateStr}T00:00:00`)
     return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
