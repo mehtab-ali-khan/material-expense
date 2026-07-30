@@ -4,6 +4,7 @@ from .models import (
     CompanyToken,
     ContactMessage,
     Item,
+    Party,
     Salesman,
     ItemVariant,
     Purchase,
@@ -18,3 +19,4 @@ admin.site.register(ItemVariant)
 admin.site.register(Purchase)
 admin.site.register(Sale)
 admin.site.register(ContactMessage)
+admin.site.register(Party)

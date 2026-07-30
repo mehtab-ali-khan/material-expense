@@ -116,7 +116,7 @@ function ProfitCard({ sale }) {
                         {sale.item_name}
                     </Text>
                     <Text fontSize="12px" color="gray.500" lineHeight="1.3">
-                        {sale.length} · {sale.measurement}
+                        {sale.length} · {sale.measurement}{sale.party_name ? ` · ${sale.party_name}` : ''}
                     </Text>
                 </Box>
                 <Text

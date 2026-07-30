@@ -20,13 +20,15 @@ const fieldInputStyles = {
     fontSize: '16px',
 }
 
-function SaleForm({ items, salesmen, onSaved, onCancel }) {
+function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
     const [variants, setVariants] = useState([])
     const [selectedItem, setSelectedItem] = useState(null)
     const [selectedLength, setSelectedLength] = useState(null)
     const [selectedMeasurement, setSelectedMeasurement] = useState(null)
     const [selectedVariant, setSelectedVariant] = useState(null)
 
+    const [partyName, setPartyName] = useState('')
+    const [partyContact, setPartyContact] = useState('')
     const [salesmanName, setSalesmanName] = useState('')
     const [quantity, setQuantity] = useState('')
     const [salePrice, setSalePrice] = useState('')
@@ -39,6 +41,8 @@ function SaleForm({ items, salesmen, onSaved, onCancel }) {
     const lengthRef = useRef(null)
     const measurementRef = useRef(null)
     const dateRef = useRef(null)
+    const partyRef = useRef(null)
+    const partyContactRef = useRef(null)
     const salesmanRef = useRef(null)
     const quantityRef = useRef(null)
     const priceRef = useRef(null)
@@ -87,17 +91,33 @@ function SaleForm({ items, salesmen, onSaved, onCancel }) {
         setSelectedVariant(variant || null)
     }
 
+    const partyContactOptions = partyContact
+        ? [{ id: 'current', name: partyContact }]
+        : []
+
+    const handlePartySelect = (opt) => {
+        setPartyName(opt.name)
+        setPartyContact(opt.contact || '')
+    }
+
+    const handlePartyCreate = (text) => {
+        setPartyName(text)
+        setPartyContact('')
+    }
+
     const disabledReason = useMemo(() => {
         if (!selectedItem) return 'Select item first'
         if (!selectedLength) return 'Select length'
         if (!selectedMeasurement || !selectedVariant) return 'Select measurement'
         if (Number(selectedVariant.current_stock_qty) <= 0) return 'No stock available'
+        if (!partyName.trim()) return 'Select company'
+        if (!partyContact.trim()) return 'Enter company contact'
         if (!quantity) return 'Enter quantity'
         if (Number(quantity) > Number(selectedVariant.current_stock_qty)) return 'Not enough stock'
         if (!salePrice) return 'Enter sale price'
         if (!date) return 'Select date'
         return ''
-    }, [date, quantity, salePrice, selectedItem, selectedLength, selectedMeasurement, selectedVariant])
+    }, [date, partyContact, partyName, quantity, salePrice, selectedItem, selectedLength, selectedMeasurement, selectedVariant])
 
     const isValid = !disabledReason
 
@@ -107,6 +127,8 @@ function SaleForm({ items, salesmen, onSaved, onCancel }) {
         setSelectedMeasurement(null)
         setSelectedVariant(null)
         setVariants([])
+        setPartyName('')
+        setPartyContact('')
         setSalesmanName('')
         setQuantity('')
         setSalePrice('')
@@ -131,6 +153,8 @@ function SaleForm({ items, salesmen, onSaved, onCancel }) {
         try {
             await createSale({
                 variant: selectedVariant.id,
+                party_name: partyName,
+                party_contact: partyContact,
                 salesman_name: salesmanName || null,
                 quantity,
                 sale_price: salePrice,
@@ -204,7 +228,7 @@ function SaleForm({ items, salesmen, onSaved, onCancel }) {
                                 options={measurementOptions}
                                 value={selectedMeasurement || ''}
                                 onSelect={handleMeasurementSelect}
-                                onCommit={() => quantityRef.current?.focus()}
+                                onCommit={() => partyRef.current?.focus()}
                                 onFocus={() => handleFieldFocus(measurementRef)}
                                 onBlur={handleFieldBlur}
                                 enterKeyHint="next"
@@ -225,6 +249,38 @@ function SaleForm({ items, salesmen, onSaved, onCancel }) {
                             </Badge>
                         </Box>
                     )}
+
+                    <Field label="Company">
+                        <SearchableDropdown
+                            inputRef={partyRef}
+                            options={parties}
+                            value={partyName}
+                            onChange={setPartyName}
+                            onSelect={handlePartySelect}
+                            onCreate={handlePartyCreate}
+                            onCommit={() => partyContactRef.current?.focus()}
+                            onFocus={() => handleFieldFocus(partyRef)}
+                            onBlur={handleFieldBlur}
+                            enterKeyHint="next"
+                            placeholder="Type to search company"
+                        />
+                    </Field>
+
+                    <Field label="Company contact">
+                        <SearchableDropdown
+                            inputRef={partyContactRef}
+                            options={partyContactOptions}
+                            value={partyContact}
+                            onChange={setPartyContact}
+                            onSelect={(opt) => setPartyContact(opt.name)}
+                            onCreate={(text) => setPartyContact(text)}
+                            onCommit={() => quantityRef.current?.focus()}
+                            onFocus={() => handleFieldFocus(partyContactRef)}
+                            onBlur={handleFieldBlur}
+                            enterKeyHint="next"
+                            placeholder="Enter contact number"
+                        />
+                    </Field>
 
                     <SimpleGrid columns={1} gap={4}>
                         <Field label="Qty">

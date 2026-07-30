@@ -3,6 +3,7 @@ import { Box, Heading, Text, VStack, Button, HStack } from '@chakra-ui/react'
 import { getItems } from '../api/items'
 import { getSalesmen } from '../api/salesmen'
 import { getSales } from '../api/sales'
+import { getParties } from '../api/parties'
 import SaleForm from '../components/SaleForm'
 import AppLayout from '../components/AppLayout'
 import { PlusIcon, XIcon } from '../components/Icons'
@@ -30,6 +31,7 @@ const todayLabel = new Date().toLocaleDateString('en-GB', {
 function SalePage() {
     const [items, setItems] = useState([])
     const [salesmen, setSalesmen] = useState([])
+    const [parties, setParties] = useState([])
     const [sales, setSales] = useState([])
     const [showForm, setShowForm] = useState(false)
     const [loading, setLoading] = useState(true)
@@ -46,13 +48,15 @@ function SalePage() {
     const loadAll = async () => {
         setLoading(true)
         try {
-            const [itemsRes, salesmenRes, salesRes] = await Promise.all([
+            const [itemsRes, salesmenRes, partiesRes, salesRes] = await Promise.all([
                 getItems(),
                 getSalesmen(),
+                getParties(),
                 getSales(dateFilter ? { date: dateFilter } : {}),
             ])
             setItems(itemsRes.data)
             setSalesmen(salesmenRes.data)
+            setParties(partiesRes.data)
             setSales(salesRes.data)
         } catch {
             setToast('Could not load data')
@@ -105,7 +109,7 @@ function SalePage() {
                 )}
 
                 {showForm ? (
-                    <SaleForm items={items} salesmen={salesmen} onSaved={handleSaved} onCancel={() => setShowForm(false)} />
+                    <SaleForm items={items} salesmen={salesmen} parties={parties} onSaved={handleSaved} onCancel={() => setShowForm(false)} />
                 ) : loading ? (
                     <PageLoader />
                 ) : sales.length === 0 ? (
@@ -157,7 +161,7 @@ function SaleCard({ sale }) {
                         {sale.item_name}
                     </Text>
                     <Text fontSize="12px" color="gray.500" lineHeight="1.3">
-                        {sale.length} · {sale.measurement}
+                        {sale.length} · {sale.measurement}{sale.party_name ? ` · ${sale.party_name}` : ''}
                     </Text>
                 </Box>
                 <Text color="black" fontSize="17px" fontWeight="bold" lineHeight="1.25" whiteSpace="nowrap" flexShrink={0}>

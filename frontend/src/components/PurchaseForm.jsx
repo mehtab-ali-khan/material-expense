@@ -22,13 +22,15 @@ const emptyForm = {
     itemName: '',
     length: '',
     measurement: '',
+    partyName: '',
+    partyContact: '',
     salesmanName: '',
     quantity: '',
     price: '',
     date: new Date().toISOString().slice(0, 10),
 }
 
-function PurchaseForm({ items, salesmen, lengthOptions, measurementOptions, onSaved, onCancel }) {
+function PurchaseForm({ items, salesmen, parties, lengthOptions, measurementOptions, onSaved, onCancel }) {
     const [form, setForm] = useState(emptyForm)
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
@@ -37,6 +39,8 @@ function PurchaseForm({ items, salesmen, lengthOptions, measurementOptions, onSa
     const lengthRef = useRef(null)
     const measurementRef = useRef(null)
     const dateRef = useRef(null)
+    const partyRef = useRef(null)
+    const partyContactRef = useRef(null)
     const salesmanRef = useRef(null)
     const quantityRef = useRef(null)
     const priceRef = useRef(null)
@@ -59,10 +63,26 @@ function PurchaseForm({ items, salesmen, lengthOptions, measurementOptions, onSa
         itemRef.current?.focus()
     }, [])
 
+    const partyContactOptions = form.partyContact
+        ? [{ id: 'current', name: form.partyContact }]
+        : []
+
+    const handlePartySelect = (opt) => {
+        updateField('partyName', opt.name)
+        updateField('partyContact', opt.contact || '')
+    }
+
+    const handlePartyCreate = (text) => {
+        updateField('partyName', text)
+        updateField('partyContact', '')
+    }
+
     const disabledReason = useMemo(() => {
         if (!form.itemName.trim()) return 'Select item first'
         if (!form.length.trim()) return 'Select length'
         if (!form.measurement.trim()) return 'Select measurement'
+        if (!form.partyName.trim()) return 'Select company'
+        if (!form.partyContact.trim()) return 'Enter company contact'
         if (!form.quantity) return 'Enter quantity'
         if (!form.price) return 'Enter price'
         if (!form.date) return 'Select date'
@@ -86,6 +106,8 @@ function PurchaseForm({ items, salesmen, lengthOptions, measurementOptions, onSa
                 item_name: form.itemName,
                 length: form.length,
                 measurement: form.measurement,
+                party_name: form.partyName,
+                party_contact: form.partyContact,
                 salesman_name: form.salesmanName || null,
                 quantity: form.quantity,
                 price: form.price,
@@ -163,7 +185,7 @@ function PurchaseForm({ items, salesmen, lengthOptions, measurementOptions, onSa
                                 onChange={(val) => updateField('measurement', val)}
                                 onSelect={(opt) => updateField('measurement', opt.name)}
                                 onCreate={(text) => updateField('measurement', text)}
-                                onCommit={() => quantityRef.current?.focus()}
+                                onCommit={() => partyRef.current?.focus()}
                                 onFocus={() => handleFieldFocus(measurementRef)}
                                 onBlur={handleFieldBlur}
                                 enterKeyHint="next"
@@ -171,6 +193,38 @@ function PurchaseForm({ items, salesmen, lengthOptions, measurementOptions, onSa
                             />
                         </Field>
                     </SimpleGrid>
+
+                    <Field label="Company">
+                        <SearchableDropdown
+                            inputRef={partyRef}
+                            options={parties}
+                            value={form.partyName}
+                            onChange={(val) => updateField('partyName', val)}
+                            onSelect={handlePartySelect}
+                            onCreate={handlePartyCreate}
+                            onCommit={() => partyContactRef.current?.focus()}
+                            onFocus={() => handleFieldFocus(partyRef)}
+                            onBlur={handleFieldBlur}
+                            enterKeyHint="next"
+                            placeholder="Type to search company"
+                        />
+                    </Field>
+
+                    <Field label="Company contact">
+                        <SearchableDropdown
+                            inputRef={partyContactRef}
+                            options={partyContactOptions}
+                            value={form.partyContact}
+                            onChange={(val) => updateField('partyContact', val)}
+                            onSelect={(opt) => updateField('partyContact', opt.name)}
+                            onCreate={(text) => updateField('partyContact', text)}
+                            onCommit={() => quantityRef.current?.focus()}
+                            onFocus={() => handleFieldFocus(partyContactRef)}
+                            onBlur={handleFieldBlur}
+                            enterKeyHint="next"
+                            placeholder="Enter contact number"
+                        />
+                    </Field>
 
                     <SimpleGrid columns={1} gap={4}>
                         <Field label="Qty">

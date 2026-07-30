@@ -3,7 +3,16 @@ from rest_framework import serializers
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.exceptions import ValidationError as DRFValidationError
 
-from .models import Company, ContactMessage, Item, Salesman, ItemVariant, Purchase, Sale
+from .models import (
+    Company,
+    ContactMessage,
+    Item,
+    Party,
+    Salesman,
+    ItemVariant,
+    Purchase,
+    Sale,
+)
 
 
 class CompanySignupSerializer(serializers.ModelSerializer):
@@ -44,6 +53,12 @@ class SalesmanSerializer(serializers.ModelSerializer):
         fields = ["id", "name"]
 
 
+class PartySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Party
+        fields = ["id", "name", "contact"]
+
+
 class ItemVariantSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(source="item.name", read_only=True)
 
@@ -67,6 +82,8 @@ class PurchaseSerializer(serializers.ModelSerializer):
     salesman_name = serializers.CharField(
         write_only=True, required=False, allow_blank=True, allow_null=True
     )
+    party_name = serializers.CharField(write_only=True)
+    party_contact = serializers.CharField(write_only=True)
 
     class Meta:
         model = Purchase
@@ -76,6 +93,8 @@ class PurchaseSerializer(serializers.ModelSerializer):
             "length",
             "measurement",
             "salesman_name",
+            "party_name",
+            "party_contact",
             "quantity",
             "price",
             "date",
@@ -89,6 +108,8 @@ class PurchaseSerializer(serializers.ModelSerializer):
         data["length"] = instance.variant.length
         data["measurement"] = instance.variant.measurement
         data["salesman_name"] = instance.salesman.name if instance.salesman else None
+        data["party_name"] = instance.party.name if instance.party else None
+        data["party_contact"] = instance.party.contact if instance.party else None
         return data
 
     def create(self, validated_data):
@@ -116,10 +137,22 @@ class PurchaseSerializer(serializers.ModelSerializer):
                 name__iexact=salesman_name,
                 defaults={"name": salesman_name},
             )
+        party_name = validated_data["party_name"].strip()
+        party_contact = validated_data["party_contact"].strip()
+
+        party, created = Party.objects.get_or_create(
+            company=company,
+            name__iexact=party_name,
+            defaults={"name": party_name, "contact": party_contact},
+        )
+        if not created and party_contact and party_contact != party.contact:
+            party.contact = party_contact
+            party.save()
 
         return Purchase.objects.create(
             variant=variant,
             salesman=salesman,
+            party=party,
             quantity=validated_data["quantity"],
             price=validated_data["price"],
             date=validated_data["date"],
@@ -133,6 +166,8 @@ class SaleSerializer(serializers.ModelSerializer):
     salesman_name = serializers.CharField(
         write_only=True, required=False, allow_blank=True, allow_null=True
     )
+    party_name = serializers.CharField(write_only=True)
+    party_contact = serializers.CharField(write_only=True)
     profit = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
     class Meta:
@@ -144,6 +179,8 @@ class SaleSerializer(serializers.ModelSerializer):
             "length",
             "measurement",
             "salesman_name",
+            "party_name",
+            "party_contact",
             "quantity",
             "sale_price",
             "purchase_price_snapshot",
@@ -156,6 +193,8 @@ class SaleSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data["salesman_name"] = instance.salesman.name if instance.salesman else None
+        data["party_name"] = instance.party.name if instance.party else None
+        data["party_contact"] = instance.party.contact if instance.party else None
         return data
 
     def create(self, validated_data):
@@ -173,10 +212,22 @@ class SaleSerializer(serializers.ModelSerializer):
                 name__iexact=salesman_name,
                 defaults={"name": salesman_name},
             )
+        party_name = validated_data["party_name"].strip()
+        party_contact = validated_data["party_contact"].strip()
+
+        party, created = Party.objects.get_or_create(
+            company=company,
+            name__iexact=party_name,
+            defaults={"name": party_name, "contact": party_contact},
+        )
+        if not created and party_contact and party_contact != party.contact:
+            party.contact = party_contact
+            party.save()
 
         sale = Sale(
             variant=variant,
             salesman=salesman,
+            party=party,
             quantity=validated_data["quantity"],
             sale_price=validated_data["sale_price"],
             date=validated_data["date"],

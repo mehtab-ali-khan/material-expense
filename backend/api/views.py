@@ -3,7 +3,16 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 
-from .models import Company, CompanyToken, Item, Salesman, ItemVariant, Purchase, Sale
+from .models import (
+    Company,
+    CompanyToken,
+    Item,
+    Party,
+    Salesman,
+    ItemVariant,
+    Purchase,
+    Sale,
+)
 from .models import normalize_phone
 
 from .serializers import (
@@ -11,6 +20,7 @@ from .serializers import (
     CompanyLoginSerializer,
     ContactMessageSerializer,
     ItemSerializer,
+    PartySerializer,
     SalesmanSerializer,
     ItemVariantSerializer,
     PurchaseSerializer,
@@ -89,6 +99,16 @@ class SalesmanListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         return Salesman.objects.filter(company=self.request.user).order_by("name")
+
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user)
+
+
+class PartyListCreateView(generics.ListCreateAPIView):
+    serializer_class = PartySerializer
+
+    def get_queryset(self):
+        return Party.objects.filter(company=self.request.user).order_by("name")
 
     def perform_create(self, serializer):
         serializer.save(company=self.request.user)

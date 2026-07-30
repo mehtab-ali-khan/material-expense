@@ -74,6 +74,25 @@ class CompanyToken(models.Model):
         super().save(*args, **kwargs)
 
 
+class Party(models.Model):
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE, related_name="parties"
+    )
+    name = models.CharField(max_length=255)
+    contact = models.CharField(max_length=32)
+
+    class Meta:
+        unique_together = ("company", "name")
+
+    def save(self, *args, **kwargs):
+        self.name = self.name.strip()
+        self.contact = self.contact.strip()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.name} ({self.contact})"
+
+
 class Item(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="items")
     name = models.CharField(max_length=255)
@@ -161,6 +180,9 @@ class Purchase(models.Model):
     salesman = models.ForeignKey(
         Salesman, on_delete=models.SET_NULL, null=True, related_name="purchases"
     )
+    party = models.ForeignKey(
+        Party, on_delete=models.SET_NULL, null=True, related_name="purchases"
+    )
     quantity = models.DecimalField(max_digits=12, decimal_places=2)
     price = models.DecimalField(max_digits=12, decimal_places=2)
     date = models.DateField(db_index=True)
@@ -183,6 +205,9 @@ class Sale(models.Model):
     )
     salesman = models.ForeignKey(
         Salesman, on_delete=models.SET_NULL, null=True, related_name="sales"
+    )
+    party = models.ForeignKey(
+        Party, on_delete=models.SET_NULL, null=True, related_name="sales"
     )
     quantity = models.DecimalField(max_digits=12, decimal_places=2)
     sale_price = models.DecimalField(max_digits=12, decimal_places=2)

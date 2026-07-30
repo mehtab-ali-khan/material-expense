@@ -4,6 +4,7 @@ import { getItems } from '../api/items'
 import { getSalesmen } from '../api/salesmen'
 import { getVariants } from '../api/variants'
 import { getPurchases } from '../api/purchases'
+import { getParties } from '../api/parties'
 import PurchaseForm from '../components/PurchaseForm'
 import AppLayout from '../components/AppLayout'
 import { PlusIcon, XIcon } from '../components/Icons'
@@ -32,6 +33,7 @@ const todayLabel = new Date().toLocaleDateString('en-GB', {
 function PurchasePage() {
     const [items, setItems] = useState([])
     const [salesmen, setSalesmen] = useState([])
+    const [parties, setParties] = useState([])
     const [lengthOptions, setLengthOptions] = useState([])
     const [measurementOptions, setMeasurementOptions] = useState([])
     const [purchases, setPurchases] = useState([])
@@ -49,14 +51,16 @@ function PurchasePage() {
     const loadAll = async () => {
         setLoading(true)
         try {
-            const [itemsRes, salesmenRes, variantsRes, purchasesRes] = await Promise.all([
+            const [itemsRes, salesmenRes, partiesRes, variantsRes, purchasesRes] = await Promise.all([
                 getItems(),
                 getSalesmen(),
+                getParties(),
                 getVariants(),
                 getPurchases(dateFilter ? { date: dateFilter } : {}),
             ])
             setItems(itemsRes.data)
             setSalesmen(salesmenRes.data)
+            setParties(partiesRes.data)
             setPurchases(purchasesRes.data)
 
             const uniqueLengths = [...new Set(variantsRes.data.map((v) => v.length))]
@@ -119,6 +123,7 @@ function PurchasePage() {
                     <PurchaseForm
                         items={items}
                         salesmen={salesmen}
+                        parties={parties}
                         lengthOptions={lengthOptions}
                         measurementOptions={measurementOptions}
                         onSaved={handleSaved}
@@ -175,7 +180,7 @@ function PurchaseCard({ purchase }) {
                         {purchase.item_name}
                     </Text>
                     <Text fontSize="12px" color="gray.500" lineHeight="1.3">
-                        {purchase.length} · {purchase.measurement}
+                        {purchase.length} · {purchase.measurement}{purchase.party_name ? ` · ${purchase.party_name}` : ''}
                     </Text>
                 </Box>
                 <Box textAlign="right" flexShrink={0}>
