@@ -12,12 +12,7 @@ function DateFilterBar({ value, onChange }) {
     const inputRef = useRef(null)
     const isFiltered = !!value
 
-    const handleClick = () => {
-        if (isFiltered) {
-            onChange('')
-            return
-        }
-        // opens native calendar UI directly
+    const openPicker = () => {
         if (inputRef.current?.showPicker) {
             inputRef.current.showPicker()
         } else {
@@ -29,12 +24,17 @@ function DateFilterBar({ value, onChange }) {
         onChange(e.target.value)
     }
 
+    const handleClear = (e) => {
+        e.stopPropagation()
+        onChange('')
+    }
+
     return (
         <Box position="relative" mb={3} display="inline-block">
             <HStack
                 as="button"
                 type="button"
-                onClick={handleClick}
+                onClick={openPicker}
                 px={3}
                 py={2}
                 minH="38px"
@@ -47,10 +47,26 @@ function DateFilterBar({ value, onChange }) {
                 fontWeight="medium"
                 gap={1.5}
             >
-                {isFiltered ? <XIcon size={14} /> : <CalendarIcon size={15} />}
+                <CalendarIcon size={15} />
                 <Text fontSize="13px" fontWeight="semibold">
                     {formatLabel(value)}
                 </Text>
+                {isFiltered && (
+                    <Box
+                        as="span"
+                        role="button"
+                        aria-label="Clear date filter"
+                        onClick={handleClear}
+                        display="flex"
+                        alignItems="center"
+                        ml={1}
+                        pl={1.5}
+                        borderLeft="1px solid"
+                        borderColor="whiteAlpha.400"
+                    >
+                        <XIcon size={13} />
+                    </Box>
+                )}
             </HStack>
 
             {/* hidden native date input, triggered programmatically via showPicker() */}

@@ -34,7 +34,9 @@ function SalePage() {
     const [showForm, setShowForm] = useState(false)
     const [loading, setLoading] = useState(true)
     const [toast, setToast] = useState('')
-    const [dateFilter, setDateFilter] = useState('')
+
+    const todayISO = () => new Date().toISOString().slice(0, 10)
+    const [dateFilter, setDateFilter] = useState(todayISO())
 
 
     useEffect(() => {
