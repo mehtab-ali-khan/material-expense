@@ -5,6 +5,7 @@ import { getSalesmen } from '../api/salesmen'
 import { getVariants } from '../api/variants'
 import { getPurchases } from '../api/purchases'
 import { getParties } from '../api/parties'
+import SearchBar from '../components/SearchBar'
 import PurchaseForm from '../components/PurchaseForm'
 import AppLayout from '../components/AppLayout'
 import { PlusIcon, XIcon } from '../components/Icons'
@@ -39,23 +40,30 @@ function PurchasePage() {
     const [showForm, setShowForm] = useState(false)
     const [loading, setLoading] = useState(true)
     const [toast, setToast] = useState('')
+    const [search, setSearch] = useState('')
+    const [searchInput, setSearchInput] = useState('')
+
+    useEffect(() => {
+        const timer = setTimeout(() => setSearch(searchInput), 350)
+        return () => clearTimeout(timer)
+    }, [searchInput])
 
     const todayISO = () => new Date().toISOString().slice(0, 10)
     const [dateFilter, setDateFilter] = useState()
 
-    useEffect(() => {
-        loadAll()
-    }, [])
-
     const loadAll = async () => {
         setLoading(true)
         try {
+            const filters = {}
+            if (dateFilter) filters.date = dateFilter
+            if (search.trim()) filters.search = search.trim()
+
             const [itemsRes, salesmenRes, partiesRes, variantsRes, purchasesRes] = await Promise.all([
                 getItems(),
                 getSalesmen(),
                 getParties(),
                 getVariants(),
-                getPurchases(dateFilter ? { date: dateFilter } : {}),
+                getPurchases(filters),
             ])
             setItems(itemsRes.data)
             setSalesmen(salesmenRes.data)
@@ -70,9 +78,10 @@ function PurchasePage() {
             setLoading(false)
         }
     }
+
     useEffect(() => {
         loadAll()
-    }, [dateFilter])
+    }, [dateFilter, search])
 
     const handleSaved = () => {
         setShowForm(false)
@@ -113,7 +122,10 @@ function PurchasePage() {
                 </Box>
 
                 {!showForm && (
-                    <DateFilterBar value={dateFilter} onChange={setDateFilter} />
+                    <HStack mb={3} gap={2} align="center">
+                        <DateFilterBar value={dateFilter} onChange={setDateFilter} />
+                        <SearchBar value={searchInput} onChange={setSearchInput} placeholder="Search item, company, contact" />
+                    </HStack>
                 )}
 
                 {showForm ? (
@@ -149,7 +161,7 @@ function PurchasePage() {
                 )}
             </Box>
             <ToastMessage message={toast} onDone={() => setToast('')} />
-        </AppLayout>
+        </AppLayout >
     )
 }
 

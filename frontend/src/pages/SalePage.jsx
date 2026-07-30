@@ -10,6 +10,7 @@ import { PlusIcon, XIcon } from '../components/Icons'
 import PageLoader from '../components/PageLoader'
 import ToastMessage from '../components/ToastMessage'
 import DateFilterBar from '../components/DateFilterBar'
+import SearchBar from '../components/SearchBar'
 
 const formatDisplayDate = (date) => {
     if (!date) return ''
@@ -36,23 +37,29 @@ function SalePage() {
     const [showForm, setShowForm] = useState(false)
     const [loading, setLoading] = useState(true)
     const [toast, setToast] = useState('')
+    const [search, setSearch] = useState('')
+    const [searchInput, setSearchInput] = useState('')
+
+    useEffect(() => {
+        const timer = setTimeout(() => setSearch(searchInput), 350)
+        return () => clearTimeout(timer)
+    }, [searchInput])
 
     const todayISO = () => new Date().toISOString().slice(0, 10)
     const [dateFilter, setDateFilter] = useState()
 
-
-    useEffect(() => {
-        loadAll()
-    }, [])
-
     const loadAll = async () => {
         setLoading(true)
         try {
+            const filters = {}
+            if (dateFilter) filters.date = dateFilter
+            if (search.trim()) filters.search = search.trim()
+
             const [itemsRes, salesmenRes, partiesRes, salesRes] = await Promise.all([
                 getItems(),
                 getSalesmen(),
                 getParties(),
-                getSales(dateFilter ? { date: dateFilter } : {}),
+                getSales(filters),
             ])
             setItems(itemsRes.data)
             setSalesmen(salesmenRes.data)
@@ -64,9 +71,11 @@ function SalePage() {
             setLoading(false)
         }
     }
+
     useEffect(() => {
         loadAll()
-    }, [dateFilter])
+    }, [dateFilter, search])
+
 
     const handleSaved = () => {
         setShowForm(false)
@@ -105,7 +114,10 @@ function SalePage() {
                 </Box>
 
                 {!showForm && (
-                    <DateFilterBar value={dateFilter} onChange={setDateFilter} />
+                    <HStack mb={3} gap={2} align="center">
+                        <DateFilterBar value={dateFilter} onChange={setDateFilter} />
+                        <SearchBar value={searchInput} onChange={setSearchInput} placeholder="Search item, company, contact" />
+                    </HStack>
                 )}
 
                 {showForm ? (

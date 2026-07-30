@@ -30,7 +30,7 @@ function DateFilterBar({ value, onChange }) {
     }
 
     return (
-        <Box position="relative" mb={3} display="inline-block">
+        <Box position="relative" display="inline-block">
             <HStack
                 as="button"
                 type="button"

@@ -2,6 +2,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
+from django.db.models import Q
 
 from .models import (
     Company,
@@ -138,6 +139,7 @@ class PurchaseListCreateView(generics.ListCreateAPIView):
         date = self.request.query_params.get("date")
         date_from = self.request.query_params.get("date_from")
         date_to = self.request.query_params.get("date_to")
+        search = self.request.query_params.get("search")
 
         if date:
             qs = qs.filter(date=date)
@@ -146,6 +148,14 @@ class PurchaseListCreateView(generics.ListCreateAPIView):
                 qs = qs.filter(date__gte=date_from)
             if date_to:
                 qs = qs.filter(date__lte=date_to)
+
+        if search:
+            search = search.strip()
+            qs = qs.filter(
+                Q(variant__item__name__icontains=search)
+                | Q(party__name__icontains=search)
+                | Q(party__contact__icontains=search)
+            )
 
         return qs
 
@@ -161,6 +171,7 @@ class SaleListCreateView(generics.ListCreateAPIView):
         date = self.request.query_params.get("date")
         date_from = self.request.query_params.get("date_from")
         date_to = self.request.query_params.get("date_to")
+        search = self.request.query_params.get("search")
 
         if date:
             qs = qs.filter(date=date)
@@ -169,6 +180,14 @@ class SaleListCreateView(generics.ListCreateAPIView):
                 qs = qs.filter(date__gte=date_from)
             if date_to:
                 qs = qs.filter(date__lte=date_to)
+
+        if search:
+            search = search.strip()
+            qs = qs.filter(
+                Q(variant__item__name__icontains=search)
+                | Q(party__name__icontains=search)
+                | Q(party__contact__icontains=search)
+            )
 
         return qs
 
