@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Button, Input, Stack, Text, Link as ChakraLink, Field } from '@chakra-ui/react'
+import { Button, Input, Stack, Text, Link as ChakraLink, Field, Box } from '@chakra-ui/react'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
 import { signup, login } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
 import AuthLayout from '../components/AuthLayout'
-import { PlusIcon } from '../components/Icons'
+import { PlusIcon, EyeIcon, EyeOffIcon } from '../components/Icons'
 import FormMessage from '../components/FormMessage'
 
 const inputStyles = {
@@ -29,6 +29,8 @@ function SignupPage() {
     const [confirmPassword, setConfirmPassword] = useState('')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
+    const [showPassword, setShowPassword] = useState(false)
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
     const { loginSuccess } = useAuth()
     const navigate = useNavigate()
@@ -104,32 +106,64 @@ function SignupPage() {
                         />
                     </Field.Root>
                     <Field.Root invalid={password.length > 0 && password.length < 8}>
-                        <Input
-                            type="password"
-                            placeholder="Password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            autoComplete="new-password"
-                            enterKeyHint="done"
-                            required
-                            minLength={8}
-                            {...inputStyles}
-                        />
+                        <Box position="relative" w="100%">
+                            <Input
+                                type={showPassword ? 'text' : 'password'}
+                                placeholder="Password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                autoComplete="new-password"
+                                enterKeyHint="done"
+                                required
+                                minLength={8}
+                                pr="44px"
+                                {...inputStyles}
+                            />
+                            <Box
+                                as="button"
+                                type="button"
+                                position="absolute"
+                                right="14px"
+                                top="50%"
+                                transform="translateY(-50%)"
+                                color="gray.500"
+                                onClick={() => setShowPassword((s) => !s)}
+                                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            >
+                                {showPassword ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
+                            </Box>
+                        </Box>
                         <Field.ErrorText>Password must be at least 8 characters</Field.ErrorText>
                     </Field.Root>
 
                     <Field.Root invalid={confirmPassword.length > 0 && confirmPassword !== password}>
-                        <Input
-                            type="password"
-                            placeholder="Confirm password"
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            autoComplete="new-password"
-                            enterKeyHint="done"
-                            required
-                            minLength={8}
-                            {...inputStyles}
-                        />
+                        <Box position="relative" w="100%">
+                            <Input
+                                type={showConfirmPassword ? 'text' : 'password'}
+                                placeholder="Confirm password"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                autoComplete="new-password"
+                                enterKeyHint="done"
+                                required
+                                minLength={8}
+                                pr="44px"
+                                {...inputStyles}
+                            />
+                            <Box
+                                as="button"
+                                type="button"
+                                position="absolute"
+                                right="14px"
+                                top="50%"
+                                transform="translateY(-50%)"
+                                color="gray.500"
+                                onClick={() => setShowConfirmPassword((s) => !s)}
+                                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                            >
+                                {showConfirmPassword ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
+                            </Box>
+                        </Box>
                         <Field.ErrorText>Passwords do not match</Field.ErrorText>
                     </Field.Root>
 

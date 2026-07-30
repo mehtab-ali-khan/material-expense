@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Button, Input, Stack, Text, Link as ChakraLink, Field } from '@chakra-ui/react'
+import { Button, Input, Stack, Text, Link as ChakraLink, Field, Box } from '@chakra-ui/react'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
 import { login } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
 import AuthLayout from '../components/AuthLayout'
-import { ArrowUpRightIcon } from '../components/Icons'
+import { ArrowUpRightIcon, EyeIcon, EyeOffIcon } from '../components/Icons'
 import FormMessage from '../components/FormMessage'
 
 const inputStyles = {
@@ -25,6 +25,7 @@ function LoginPage() {
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
+    const [showPassword, setShowPassword] = useState(false)
 
     const { loginSuccess } = useAuth()
     const navigate = useNavigate()
@@ -62,16 +63,32 @@ function LoginPage() {
                         />
                     </Field.Root>
                     <Field.Root>
-                        <Input
-                            type="password"
-                            placeholder="Password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            autoComplete="current-password"
-                            enterKeyHint="done"
-                            required
-                            {...inputStyles}
-                        />
+                        <Box position="relative" w="100%">
+                            <Input
+                                type={showPassword ? 'text' : 'password'}
+                                placeholder="Password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                autoComplete="current-password"
+                                enterKeyHint="done"
+                                required
+                                pr="44px"
+                                {...inputStyles}
+                            />
+                            <Box
+                                as="button"
+                                type="button"
+                                position="absolute"
+                                right="14px"
+                                top="50%"
+                                transform="translateY(-50%)"
+                                color="gray.500"
+                                onClick={() => setShowPassword((s) => !s)}
+                                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            >
+                                {showPassword ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
+                            </Box>
+                        </Box>
                     </Field.Root>
 
                     {error && (
