@@ -124,7 +124,7 @@ function PurchasePage() {
                 {!showForm && (
                     <HStack mb={3} gap={2} align="center">
                         <DateFilterBar value={dateFilter} onChange={setDateFilter} />
-                        <SearchBar value={searchInput} onChange={setSearchInput} placeholder="Search item, company, contact" />
+                        <SearchBar value={searchInput} onChange={setSearchInput} placeholder="Search item, company or contact" />
                     </HStack>
                 )}
 
