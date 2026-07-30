@@ -128,7 +128,6 @@ class Salesman(models.Model):
 class ItemVariant(models.Model):
     item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name="variants")
     length = models.CharField(max_length=100)
-    measurement = models.CharField(max_length=100)
 
     current_stock_qty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     avg_purchase_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -140,15 +139,14 @@ class ItemVariant(models.Model):
     )
 
     class Meta:
-        unique_together = ("item", "length", "measurement")
+        unique_together = ("item", "length")
 
     def save(self, *args, **kwargs):
         self.length = self.length.strip()
-        self.measurement = self.measurement.strip()
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.item.name} ({self.length}, {self.measurement})"
+        return f"{self.item.name} ({self.length})"
 
     def record_purchase(self, quantity, price):
         """

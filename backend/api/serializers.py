@@ -69,7 +69,6 @@ class ItemVariantSerializer(serializers.ModelSerializer):
             "item",
             "item_name",
             "length",
-            "measurement",
             "current_stock_qty",
             "avg_purchase_price",
         ]
@@ -78,7 +77,6 @@ class ItemVariantSerializer(serializers.ModelSerializer):
 class PurchaseSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(write_only=True)
     length = serializers.CharField(write_only=True)
-    measurement = serializers.CharField(write_only=True)
     salesman_name = serializers.CharField(
         write_only=True, required=False, allow_blank=True, allow_null=True
     )
@@ -91,7 +89,6 @@ class PurchaseSerializer(serializers.ModelSerializer):
             "id",
             "item_name",
             "length",
-            "measurement",
             "salesman_name",
             "party_name",
             "party_contact",
@@ -106,7 +103,6 @@ class PurchaseSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         data["item_name"] = instance.variant.item.name
         data["length"] = instance.variant.length
-        data["measurement"] = instance.variant.measurement
         data["salesman_name"] = instance.salesman.name if instance.salesman else None
         data["party_name"] = instance.party.name if instance.party else None
         data["party_contact"] = instance.party.contact if instance.party else None
@@ -123,11 +119,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
         variant, _ = ItemVariant.objects.get_or_create(
             item=item,
             length__iexact=validated_data["length"].strip(),
-            measurement__iexact=validated_data["measurement"].strip(),
-            defaults={
-                "length": validated_data["length"].strip(),
-                "measurement": validated_data["measurement"].strip(),
-            },
+            defaults={"length": validated_data["length"].strip()},
         )
         salesman_name = (validated_data.get("salesman_name") or "").strip()
         salesman = None
@@ -162,7 +154,6 @@ class PurchaseSerializer(serializers.ModelSerializer):
 class SaleSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(source="variant.item.name", read_only=True)
     length = serializers.CharField(source="variant.length", read_only=True)
-    measurement = serializers.CharField(source="variant.measurement", read_only=True)
     salesman_name = serializers.CharField(
         write_only=True, required=False, allow_blank=True, allow_null=True
     )
@@ -177,7 +168,6 @@ class SaleSerializer(serializers.ModelSerializer):
             "variant",
             "item_name",
             "length",
-            "measurement",
             "salesman_name",
             "party_name",
             "party_contact",

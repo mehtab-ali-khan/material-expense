@@ -35,7 +35,6 @@ function PurchasePage() {
     const [salesmen, setSalesmen] = useState([])
     const [parties, setParties] = useState([])
     const [lengthOptions, setLengthOptions] = useState([])
-    const [measurementOptions, setMeasurementOptions] = useState([])
     const [purchases, setPurchases] = useState([])
     const [showForm, setShowForm] = useState(false)
     const [loading, setLoading] = useState(true)
@@ -64,9 +63,7 @@ function PurchasePage() {
             setPurchases(purchasesRes.data)
 
             const uniqueLengths = [...new Set(variantsRes.data.map((v) => v.length))]
-            const uniqueMeasurements = [...new Set(variantsRes.data.map((v) => v.measurement))]
             setLengthOptions(uniqueLengths.map((l, i) => ({ id: i, name: l })))
-            setMeasurementOptions(uniqueMeasurements.map((m, i) => ({ id: i, name: m })))
         } catch {
             setToast('Could not load data')
         } finally {
@@ -125,7 +122,6 @@ function PurchasePage() {
                         salesmen={salesmen}
                         parties={parties}
                         lengthOptions={lengthOptions}
-                        measurementOptions={measurementOptions}
                         onSaved={handleSaved}
                         onCancel={() => setShowForm(false)}
                     />
@@ -180,7 +176,7 @@ function PurchaseCard({ purchase }) {
                         {purchase.item_name}
                     </Text>
                     <Text fontSize="12px" color="gray.500" lineHeight="1.3">
-                        {purchase.length} · {purchase.measurement}{purchase.party_name ? ` · ${purchase.party_name}` : ''}
+                        {purchase.length}{purchase.party_name ? ` · ${purchase.party_name}` : ''}
                     </Text>
                 </Box>
                 <Box textAlign="right" flexShrink={0}>

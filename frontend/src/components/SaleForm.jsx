@@ -24,7 +24,6 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
     const [variants, setVariants] = useState([])
     const [selectedItem, setSelectedItem] = useState(null)
     const [selectedLength, setSelectedLength] = useState(null)
-    const [selectedMeasurement, setSelectedMeasurement] = useState(null)
     const [selectedVariant, setSelectedVariant] = useState(null)
 
     const [partyName, setPartyName] = useState('')
@@ -39,7 +38,6 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
     const [keyboardMode, setKeyboardMode] = useState(false)
     const itemRef = useRef(null)
     const lengthRef = useRef(null)
-    const measurementRef = useRef(null)
     const dateRef = useRef(null)
     const partyRef = useRef(null)
     const partyContactRef = useRef(null)
@@ -67,7 +65,6 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
     const handleItemSelect = async (opt) => {
         setSelectedItem(opt)
         setSelectedLength(null)
-        setSelectedMeasurement(null)
         setSelectedVariant(null)
         const res = await getVariants(opt.id)
         setVariants(res.data)
@@ -77,17 +74,7 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
 
     const handleLengthSelect = (opt) => {
         setSelectedLength(opt.name)
-        setSelectedMeasurement(null)
-        setSelectedVariant(null)
-    }
-
-    const measurementOptions = [...new Set(
-        variants.filter((v) => v.length === selectedLength).map((v) => v.measurement)
-    )].map((m, i) => ({ id: i, name: m }))
-
-    const handleMeasurementSelect = (opt) => {
-        setSelectedMeasurement(opt.name)
-        const variant = variants.find((v) => v.length === selectedLength && v.measurement === opt.name)
+        const variant = variants.find((v) => v.length === opt.name)
         setSelectedVariant(variant || null)
     }
 
@@ -107,8 +94,7 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
 
     const disabledReason = useMemo(() => {
         if (!selectedItem) return 'Select item first'
-        if (!selectedLength) return 'Select length'
-        if (!selectedMeasurement || !selectedVariant) return 'Select measurement'
+        if (!selectedVariant) return 'Select length'
         if (Number(selectedVariant.current_stock_qty) <= 0) return 'No stock available'
         if (!quantity) return 'Enter quantity'
         if (Number(quantity) > Number(selectedVariant.current_stock_qty)) return 'Not enough stock'
@@ -117,14 +103,13 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
         if (!partyContact.trim()) return 'Enter company contact'
         if (!date) return 'Select date'
         return ''
-    }, [date, partyContact, partyName, quantity, salePrice, selectedItem, selectedLength, selectedMeasurement, selectedVariant])
+    }, [date, partyContact, partyName, quantity, salePrice, selectedItem, selectedVariant])
 
     const isValid = !disabledReason
 
     const resetForm = () => {
         setSelectedItem(null)
         setSelectedLength(null)
-        setSelectedMeasurement(null)
         setSelectedVariant(null)
         setVariants([])
         setPartyName('')
@@ -207,36 +192,20 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
                         />
                     </Field>
 
-                    <SimpleGrid columns={1} gap={4}>
-                        <Field label="Length">
-                            <SelectDropdown
-                                inputRef={lengthRef}
-                                options={lengthOptions}
-                                value={selectedLength || ''}
-                                onSelect={handleLengthSelect}
-                                onCommit={() => measurementRef.current?.focus()}
-                                onFocus={() => handleFieldFocus(lengthRef)}
-                                onBlur={handleFieldBlur}
-                                enterKeyHint="next"
-                                placeholder="Type to search length"
-                                disabled={!selectedItem}
-                            />
-                        </Field>
-                        <Field label="Measure">
-                            <SelectDropdown
-                                inputRef={measurementRef}
-                                options={measurementOptions}
-                                value={selectedMeasurement || ''}
-                                onSelect={handleMeasurementSelect}
-                                onCommit={() => quantityRef.current?.focus()}
-                                onFocus={() => handleFieldFocus(measurementRef)}
-                                onBlur={handleFieldBlur}
-                                enterKeyHint="next"
-                                placeholder="Type to search measurement"
-                                disabled={!selectedLength}
-                            />
-                        </Field>
-                    </SimpleGrid>
+                    <Field label="Length">
+                        <SelectDropdown
+                            inputRef={lengthRef}
+                            options={lengthOptions}
+                            value={selectedLength || ''}
+                            onSelect={handleLengthSelect}
+                            onCommit={() => quantityRef.current?.focus()}
+                            onFocus={() => handleFieldFocus(lengthRef)}
+                            onBlur={handleFieldBlur}
+                            enterKeyHint="next"
+                            placeholder="Type to search length"
+                            disabled={!selectedItem}
+                        />
+                    </Field>
 
                     {selectedItem && variants.length === 0 && (
                         <FormMessage tone="error">No stock available</FormMessage>

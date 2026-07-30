@@ -21,7 +21,6 @@ const fieldInputStyles = {
 const emptyForm = {
     itemName: '',
     length: '',
-    measurement: '',
     partyName: '',
     partyContact: '',
     salesmanName: '',
@@ -30,14 +29,13 @@ const emptyForm = {
     date: new Date().toISOString().slice(0, 10),
 }
 
-function PurchaseForm({ items, salesmen, parties, lengthOptions, measurementOptions, onSaved, onCancel }) {
+function PurchaseForm({ items, salesmen, parties, lengthOptions, onSaved, onCancel }) {
     const [form, setForm] = useState(emptyForm)
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
     const [keyboardMode, setKeyboardMode] = useState(false)
     const itemRef = useRef(null)
     const lengthRef = useRef(null)
-    const measurementRef = useRef(null)
     const dateRef = useRef(null)
     const partyRef = useRef(null)
     const partyContactRef = useRef(null)
@@ -80,7 +78,6 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, measurementOpti
     const disabledReason = useMemo(() => {
         if (!form.itemName.trim()) return 'Select item first'
         if (!form.length.trim()) return 'Select length'
-        if (!form.measurement.trim()) return 'Select measurement'
         if (!form.quantity) return 'Enter quantity'
         if (!form.price) return 'Enter price'
         if (!form.partyName.trim()) return 'Select company'
@@ -105,7 +102,6 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, measurementOpti
             await createPurchase({
                 item_name: form.itemName,
                 length: form.length,
-                measurement: form.measurement,
                 party_name: form.partyName,
                 party_contact: form.partyContact,
                 salesman_name: form.salesmanName || null,
@@ -161,38 +157,21 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, measurementOpti
                         />
                     </Field>
 
-                    <SimpleGrid columns={1} gap={4}>
-                        <Field label="Length">
-                            <SearchableDropdown
-                                inputRef={lengthRef}
-                                options={lengthOptions}
-                                value={form.length}
-                                onChange={(val) => updateField('length', val)}
-                                onSelect={(opt) => updateField('length', opt.name)}
-                                onCreate={(text) => updateField('length', text)}
-                                onCommit={() => measurementRef.current?.focus()}
-                                onFocus={() => handleFieldFocus(lengthRef)}
-                                onBlur={handleFieldBlur}
-                                enterKeyHint="next"
-                                placeholder="Type to search length"
-                            />
-                        </Field>
-                        <Field label="Measure">
-                            <SearchableDropdown
-                                inputRef={measurementRef}
-                                options={measurementOptions}
-                                value={form.measurement}
-                                onChange={(val) => updateField('measurement', val)}
-                                onSelect={(opt) => updateField('measurement', opt.name)}
-                                onCreate={(text) => updateField('measurement', text)}
-                                onCommit={() => quantityRef.current?.focus()}
-                                onFocus={() => handleFieldFocus(measurementRef)}
-                                onBlur={handleFieldBlur}
-                                enterKeyHint="next"
-                                placeholder="Type to search measurement"
-                            />
-                        </Field>
-                    </SimpleGrid>
+                    <Field label="Length">
+                        <SearchableDropdown
+                            inputRef={lengthRef}
+                            options={lengthOptions}
+                            value={form.length}
+                            onChange={(val) => updateField('length', val)}
+                            onSelect={(opt) => updateField('length', opt.name)}
+                            onCreate={(text) => updateField('length', text)}
+                            onCommit={() => quantityRef.current?.focus()}
+                            onFocus={() => handleFieldFocus(lengthRef)}
+                            onBlur={handleFieldBlur}
+                            enterKeyHint="next"
+                            placeholder="Type to search length"
+                        />
+                    </Field>
 
                     <SimpleGrid columns={1} gap={4}>
                         <Field label="Qty">

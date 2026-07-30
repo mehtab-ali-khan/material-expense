@@ -161,7 +161,7 @@ function SaleCard({ sale }) {
                         {sale.item_name}
                     </Text>
                     <Text fontSize="12px" color="gray.500" lineHeight="1.3">
-                        {sale.length} · {sale.measurement}{sale.party_name ? ` · ${sale.party_name}` : ''}
+                        {sale.length}{sale.party_name ? ` · ${sale.party_name}` : ''}
                     </Text>
                 </Box>
                 <Text color="black" fontSize="17px" fontWeight="bold" lineHeight="1.25" whiteSpace="nowrap" flexShrink={0}>
