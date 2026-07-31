@@ -64,7 +64,6 @@ def make_purchase_payload():
     def _make(
         item_name="Steel Rod",
         length="20ft",
-        measurement="12mm",
         quantity="10",
         price="100",
         date="2026-01-01",
@@ -75,7 +74,6 @@ def make_purchase_payload():
         return {
             "item_name": item_name,
             "length": length,
-            "measurement": measurement,
             "quantity": quantity,
             "price": price,
             "date": date,
@@ -115,11 +113,9 @@ def make_sale_payload():
 def variant_factory(db):
     """Directly create an Item + ItemVariant for a given company (bypassing the API)."""
 
-    def _make(company, name="Steel Rod", length="20ft", measurement="12mm"):
+    def _make(company, name="Steel Rod", length="20ft"):
         item, _ = Item.objects.get_or_create(company=company, name=name)
-        variant, _ = ItemVariant.objects.get_or_create(
-            item=item, length=length, measurement=measurement
-        )
+        variant, _ = ItemVariant.objects.get_or_create(item=item, length=length)
         return variant
 
     return _make
