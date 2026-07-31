@@ -24,17 +24,13 @@ const formatMoney = (value) => {
     return number.toLocaleString('en-US', { maximumFractionDigits: 2 })
 }
 
-const todayLabel = new Date().toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-})
-
 function SalePage() {
     const [items, setItems] = useState([])
     const [salesmen, setSalesmen] = useState([])
     const [parties, setParties] = useState([])
     const [sales, setSales] = useState([])
     const [showForm, setShowForm] = useState(false)
+    const [editingSale, setEditingSale] = useState(null)
     const [loading, setLoading] = useState(true)
     const [toast, setToast] = useState('')
     const [search, setSearch] = useState('')
@@ -45,7 +41,6 @@ function SalePage() {
         return () => clearTimeout(timer)
     }, [searchInput])
 
-    const todayISO = () => new Date().toISOString().slice(0, 10)
     const [dateFilter, setDateFilter] = useState()
 
     const loadAll = async () => {
@@ -76,11 +71,30 @@ function SalePage() {
         loadAll()
     }, [dateFilter, search])
 
-
     const handleSaved = () => {
         setShowForm(false)
-        setToast('Sale saved')
+        setEditingSale(null)
+        setToast(editingSale ? 'Sale updated' : 'Sale saved')
         loadAll()
+    }
+
+    const handleCancel = () => {
+        setShowForm(false)
+        setEditingSale(null)
+    }
+
+    const handleCardClick = (sale) => {
+        setEditingSale(sale)
+        setShowForm(true)
+    }
+
+    const handleAddNew = () => {
+        if (showForm) {
+            handleCancel()
+        } else {
+            setEditingSale(null)
+            setShowForm(true)
+        }
     }
 
     return (
@@ -92,7 +106,7 @@ function SalePage() {
             >
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
                     <Heading fontSize="24px" lineHeight="1.1" color="black">
-                        {showForm ? 'Add sale' : 'Sales'}
+                        {showForm ? (editingSale ? 'Edit sale' : 'Add sale') : 'Sales'}
                     </Heading>
                     <Button
                         display="inline-flex"
@@ -106,7 +120,7 @@ function SalePage() {
                         fontWeight="semibold"
                         fontSize="14px"
                         _hover={{ bg: 'gray.800' }}
-                        onClick={() => setShowForm((s) => !s)}
+                        onClick={handleAddNew}
                     >
                         {showForm ? <XIcon /> : <PlusIcon />}
                         {showForm ? 'Cancel' : 'Add New'}
@@ -121,7 +135,14 @@ function SalePage() {
                 )}
 
                 {showForm ? (
-                    <SaleForm items={items} salesmen={salesmen} parties={parties} onSaved={handleSaved} onCancel={() => setShowForm(false)} />
+                    <SaleForm
+                        items={items}
+                        salesmen={salesmen}
+                        parties={parties}
+                        editingSale={editingSale}
+                        onSaved={handleSaved}
+                        onCancel={handleCancel}
+                    />
                 ) : loading ? (
                     <PageLoader />
                 ) : sales.length === 0 ? (
@@ -140,7 +161,7 @@ function SalePage() {
                 ) : (
                     <VStack gap={2} align="stretch">
                         {[...sales].sort((a, b) => new Date(b.date) - new Date(a.date) || b.id - a.id).map((s) => (
-                            <SaleCard key={s.id} sale={s} />
+                            <SaleCard key={s.id} sale={s} onClick={() => handleCardClick(s)} />
                         ))}
                     </VStack>
                 )}
@@ -150,7 +171,7 @@ function SalePage() {
     )
 }
 
-function SaleCard({ sale }) {
+function SaleCard({ sale, onClick }) {
     const quantity = Number(sale.quantity)
     const price = Number(sale.sale_price)
     const total = Number.isFinite(quantity) && Number.isFinite(price)
@@ -158,7 +179,21 @@ function SaleCard({ sale }) {
         : sale.sale_price
 
     return (
-        <Box bg="white" border="1px solid" borderColor="gray.100" borderRadius="xl" px={3} py={2.5}>
+        <Box
+            as="button"
+            type="button"
+            onClick={onClick}
+            w="100%"
+            textAlign="left"
+            bg="white"
+            border="1px solid"
+            borderColor="gray.100"
+            borderRadius="xl"
+            px={3}
+            py={2.5}
+            cursor="pointer"
+            _hover={{ borderColor: 'gray.300' }}
+        >
             <HStack justify="space-between" align="start" gap={3}>
                 <Box minW={0}>
                     <Text

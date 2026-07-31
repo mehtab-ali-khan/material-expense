@@ -1,3 +1,4 @@
+from decimal import Decimal
 import secrets
 
 from django.db import models
@@ -168,6 +169,45 @@ class ItemVariant(models.Model):
         if quantity > self.current_stock_qty:
             raise ValidationError("Cannot sell more than available stock.")
         self.current_stock_qty -= quantity
+        self.save()
+
+    def adjust_purchase(self, old_quantity, old_price, new_quantity, new_price):
+        """
+        Apply the net effect of editing a purchase from
+        (old_quantity, old_price) to (new_quantity, new_price) in one step.
+        Validates against the FINAL resulting stock, not an intermediate one.
+        """
+        new_stock = self.current_stock_qty - old_quantity + new_quantity
+        if new_stock < 0:
+            raise ValidationError(
+                "Quantity cannot be less than the sold stock. Adjust the related sales first."
+            )
+
+        new_total_qty = self.total_purchased_qty - old_quantity + new_quantity
+        new_total_value = (
+            self.total_purchased_value
+            - (old_quantity * old_price)
+            + (new_quantity * new_price)
+        )
+
+        self.total_purchased_qty = new_total_qty
+        self.total_purchased_value = new_total_value
+        self.avg_purchase_price = (
+            new_total_value / new_total_qty if new_total_qty > 0 else Decimal("0")
+        )
+        self.current_stock_qty = new_stock
+        self.save()
+
+    def adjust_sale(self, old_quantity, new_quantity):
+        """
+        Apply the net effect of editing a sale's quantity from
+        old_quantity to new_quantity in one step, validated against the
+        FINAL resulting stock.
+        """
+        new_stock = self.current_stock_qty + old_quantity - new_quantity
+        if new_stock < 0:
+            raise ValidationError("Cannot sell more than available stock.")
+        self.current_stock_qty = new_stock
         self.save()
 
 

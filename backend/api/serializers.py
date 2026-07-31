@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import serializers
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -75,8 +76,8 @@ class ItemVariantSerializer(serializers.ModelSerializer):
 
 
 class PurchaseSerializer(serializers.ModelSerializer):
-    item_name = serializers.CharField(write_only=True)
-    length = serializers.CharField(write_only=True)
+    item_name = serializers.CharField(write_only=True, required=False)
+    length = serializers.CharField(write_only=True, required=False)
     salesman_name = serializers.CharField(
         write_only=True, required=False, allow_blank=True, allow_null=True
     )
@@ -110,6 +111,9 @@ class PurchaseSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         company = self.context["request"].user
+
+        if not validated_data.get("item_name") or not validated_data.get("length"):
+            raise DRFValidationError("item_name and length are required.")
 
         item, _ = Item.objects.get_or_create(
             company=company,
@@ -150,6 +154,53 @@ class PurchaseSerializer(serializers.ModelSerializer):
             date=validated_data["date"],
         )
 
+    def update(self, instance, validated_data):
+        company = self.context["request"].user
+        variant = instance.variant
+
+        salesman = instance.salesman
+        if "salesman_name" in validated_data:
+            salesman_name = (validated_data.get("salesman_name") or "").strip()
+            salesman = None
+            if salesman_name:
+                salesman, _ = Salesman.objects.get_or_create(
+                    company=company,
+                    name__iexact=salesman_name,
+                    defaults={"name": salesman_name},
+                )
+
+        party = instance.party
+        if "party_name" in validated_data:
+            party_name = validated_data["party_name"].strip()
+            party_contact = validated_data.get("party_contact", "").strip()
+            party, created = Party.objects.get_or_create(
+                company=company,
+                name__iexact=party_name,
+                defaults={"name": party_name, "contact": party_contact},
+            )
+            if not created and party_contact and party_contact != party.contact:
+                party.contact = party_contact
+                party.save()
+
+        new_quantity = validated_data.get("quantity", instance.quantity)
+        new_price = validated_data.get("price", instance.price)
+
+        with transaction.atomic():
+            try:
+                variant.adjust_purchase(
+                    instance.quantity, instance.price, new_quantity, new_price
+                )
+            except DjangoValidationError as e:
+                raise DRFValidationError(e.message)
+
+            instance.quantity = new_quantity
+            instance.price = new_price
+            instance.date = validated_data.get("date", instance.date)
+            instance.salesman = salesman
+            instance.party = party
+            instance.save()
+        return instance
+
 
 class SaleSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(source="variant.item.name", read_only=True)
@@ -179,6 +230,9 @@ class SaleSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["purchase_price_snapshot", "created_at"]
+        extra_kwargs = {
+            "variant": {"required": True},
+        }
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -229,6 +283,52 @@ class SaleSerializer(serializers.ModelSerializer):
             raise DRFValidationError(e.message)
 
         return sale
+
+    def update(self, instance, validated_data):
+        company = self.context["request"].user
+        variant = instance.variant
+
+        salesman = instance.salesman
+        if "salesman_name" in validated_data:
+            salesman_name = (validated_data.get("salesman_name") or "").strip()
+            salesman = None
+            if salesman_name:
+                salesman, _ = Salesman.objects.get_or_create(
+                    company=company,
+                    name__iexact=salesman_name,
+                    defaults={"name": salesman_name},
+                )
+
+        party = instance.party
+        if "party_name" in validated_data:
+            party_name = validated_data["party_name"].strip()
+            party_contact = validated_data.get("party_contact", "").strip()
+            party, created = Party.objects.get_or_create(
+                company=company,
+                name__iexact=party_name,
+                defaults={"name": party_name, "contact": party_contact},
+            )
+            if not created and party_contact and party_contact != party.contact:
+                party.contact = party_contact
+                party.save()
+
+        new_quantity = validated_data.get("quantity", instance.quantity)
+        new_sale_price = validated_data.get("sale_price", instance.sale_price)
+
+        with transaction.atomic():
+            try:
+                variant.adjust_sale(instance.quantity, new_quantity)
+            except DjangoValidationError as e:
+                raise DRFValidationError(e.message)
+
+            instance.quantity = new_quantity
+            instance.sale_price = new_sale_price
+            instance.date = validated_data.get("date", instance.date)
+            instance.salesman = salesman
+            instance.party = party
+            # purchase_price_snapshot intentionally untouched — preserved
+            instance.save()
+        return instance
 
 
 class ContactMessageSerializer(serializers.ModelSerializer):

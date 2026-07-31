@@ -16,7 +16,7 @@ function FormMessage({ tone = 'error', children }) {
             minH="48px"
             align="start"
         >
-            <AlertIcon size={18} />
+            {/* <AlertIcon size={18} /> */}
             <Text fontSize="16px">{children}</Text>
         </HStack>
     )

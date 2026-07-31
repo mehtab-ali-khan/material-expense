@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Button, HStack, Input, Stack, Text, SimpleGrid, VStack } from '@chakra-ui/react'
-import { createPurchase } from '../api/purchases'
+import { createPurchase, updatePurchase } from '../api/purchases'
 import SearchableDropdown from './SearchableDropdown'
 import { SaveIcon, XIcon } from './Icons'
 import FormMessage from './FormMessage'
@@ -29,8 +29,23 @@ const emptyForm = {
     date: new Date().toISOString().slice(0, 10),
 }
 
-function PurchaseForm({ items, salesmen, parties, lengthOptions, onSaved, onCancel }) {
-    const [form, setForm] = useState(emptyForm)
+function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase, onSaved, onCancel }) {
+    const isEditing = !!editingPurchase
+
+    const [form, setForm] = useState(() =>
+        editingPurchase
+            ? {
+                itemName: editingPurchase.item_name || '',
+                length: editingPurchase.length || '',
+                partyName: editingPurchase.party_name || '',
+                partyContact: editingPurchase.party_contact || '',
+                salesmanName: editingPurchase.salesman_name || '',
+                quantity: String(editingPurchase.quantity ?? ''),
+                price: String(editingPurchase.price ?? ''),
+                date: editingPurchase.date || new Date().toISOString().slice(0, 10),
+            }
+            : emptyForm
+    )
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
     const [keyboardMode, setKeyboardMode] = useState(false)
@@ -58,7 +73,12 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, onSaved, onCanc
     }
 
     useEffect(() => {
-        itemRef.current?.focus()
+        if (isEditing) {
+            quantityRef.current?.focus()
+        } else {
+            itemRef.current?.focus()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     const partyContactOptions = form.partyContact
@@ -99,20 +119,38 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, onSaved, onCanc
 
         setLoading(true)
         try {
-            await createPurchase({
-                item_name: form.itemName,
-                length: form.length,
-                party_name: form.partyName,
-                party_contact: form.partyContact,
-                salesman_name: form.salesmanName || null,
-                quantity: form.quantity,
-                price: form.price,
-                date: form.date,
-            })
-            setForm(emptyForm)
+            if (isEditing) {
+                await updatePurchase(editingPurchase.id, {
+                    party_name: form.partyName,
+                    party_contact: form.partyContact,
+                    salesman_name: form.salesmanName || null,
+                    quantity: form.quantity,
+                    price: form.price,
+                    date: form.date,
+                })
+            } else {
+                await createPurchase({
+                    item_name: form.itemName,
+                    length: form.length,
+                    party_name: form.partyName,
+                    party_contact: form.partyContact,
+                    salesman_name: form.salesmanName || null,
+                    quantity: form.quantity,
+                    price: form.price,
+                    date: form.date,
+                })
+                setForm(emptyForm)
+            }
             onSaved()
-        } catch {
-            setError('Could not save purchase. Please check the values and try again.')
+        } catch (err) {
+            const detail = err.response?.data?.[0] || err.response?.data?.non_field_errors?.[0]
+            setError(
+                typeof detail === 'string'
+                    ? detail
+                    : isEditing
+                        ? 'Could not save changes. Please check the values and try again.'
+                        : 'Could not save purchase. Please check the values and try again.'
+            )
         } finally {
             setLoading(false)
         }
@@ -142,35 +180,59 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, onSaved, onCanc
                     </Field>
 
                     <Field label="Item">
-                        <SearchableDropdown
-                            inputRef={itemRef}
-                            options={items}
-                            value={form.itemName}
-                            onChange={(val) => updateField('itemName', val)}
-                            onSelect={(opt) => updateField('itemName', opt.name)}
-                            onCreate={(text) => updateField('itemName', text)}
-                            onCommit={() => lengthRef.current?.focus()}
-                            onFocus={() => handleFieldFocus(itemRef)}
-                            onBlur={handleFieldBlur}
-                            enterKeyHint="next"
-                            placeholder="Type to search item"
-                        />
+                        {isEditing ? (
+                            <Input
+                                value={form.itemName}
+                                readOnly
+                                disabled
+                                {...fieldInputStyles}
+                                bg="gray.100"
+                                color="gray.600"
+                                cursor="not-allowed"
+                            />
+                        ) : (
+                            <SearchableDropdown
+                                inputRef={itemRef}
+                                options={items}
+                                value={form.itemName}
+                                onChange={(val) => updateField('itemName', val)}
+                                onSelect={(opt) => updateField('itemName', opt.name)}
+                                onCreate={(text) => updateField('itemName', text)}
+                                onCommit={() => lengthRef.current?.focus()}
+                                onFocus={() => handleFieldFocus(itemRef)}
+                                onBlur={handleFieldBlur}
+                                enterKeyHint="next"
+                                placeholder="Type to search item"
+                            />
+                        )}
                     </Field>
 
                     <Field label="Length">
-                        <SearchableDropdown
-                            inputRef={lengthRef}
-                            options={lengthOptions}
-                            value={form.length}
-                            onChange={(val) => updateField('length', val)}
-                            onSelect={(opt) => updateField('length', opt.name)}
-                            onCreate={(text) => updateField('length', text)}
-                            onCommit={() => quantityRef.current?.focus()}
-                            onFocus={() => handleFieldFocus(lengthRef)}
-                            onBlur={handleFieldBlur}
-                            enterKeyHint="next"
-                            placeholder="Type to search length"
-                        />
+                        {isEditing ? (
+                            <Input
+                                value={form.length}
+                                readOnly
+                                disabled
+                                {...fieldInputStyles}
+                                bg="gray.100"
+                                color="gray.600"
+                                cursor="not-allowed"
+                            />
+                        ) : (
+                            <SearchableDropdown
+                                inputRef={lengthRef}
+                                options={lengthOptions}
+                                value={form.length}
+                                onChange={(val) => updateField('length', val)}
+                                onSelect={(opt) => updateField('length', opt.name)}
+                                onCreate={(text) => updateField('length', text)}
+                                onCommit={() => quantityRef.current?.focus()}
+                                onFocus={() => handleFieldFocus(lengthRef)}
+                                onBlur={handleFieldBlur}
+                                enterKeyHint="next"
+                                placeholder="Type to search length"
+                            />
+                        )}
                     </Field>
 
                     <SimpleGrid columns={1} gap={4}>
@@ -216,7 +278,7 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, onSaved, onCanc
                         </Field>
                     </SimpleGrid>
 
-                    <Field label="Salesman optional">
+                    <Field label="Salesman">
                         <SearchableDropdown
                             inputRef={salesmanRef}
                             options={salesmen}
@@ -313,7 +375,7 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, onSaved, onCanc
                             _disabled={{ bg: 'gray.300', color: 'gray.600', cursor: 'not-allowed' }}
                         >
                             <SaveIcon />
-                            Save
+                            {isEditing ? 'Save changes' : 'Save'}
                         </Button>
                     </HStack>
                 </VStack>

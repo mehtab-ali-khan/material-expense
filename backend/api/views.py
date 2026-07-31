@@ -160,6 +160,13 @@ class PurchaseListCreateView(generics.ListCreateAPIView):
         return qs
 
 
+class PurchaseDetailView(generics.RetrieveUpdateAPIView):
+    serializer_class = PurchaseSerializer
+
+    def get_queryset(self):
+        return Purchase.objects.filter(variant__item__company=self.request.user)
+
+
 class SaleListCreateView(generics.ListCreateAPIView):
     serializer_class = SaleSerializer
 
@@ -190,6 +197,13 @@ class SaleListCreateView(generics.ListCreateAPIView):
             )
 
         return qs
+
+
+class SaleDetailView(generics.RetrieveUpdateAPIView):
+    serializer_class = SaleSerializer
+
+    def get_queryset(self):
+        return Sale.objects.filter(variant__item__company=self.request.user)
 
 
 class ContactMessageCreateView(generics.CreateAPIView):

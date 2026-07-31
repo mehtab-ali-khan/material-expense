@@ -4,3 +4,5 @@ export const getPurchases = (filters = {}) =>
   apiClient.get('/purchases/', { params: filters })
 
 export const createPurchase = (data) => apiClient.post('/purchases/', data)
+
+export const updatePurchase = (id, data) => apiClient.patch(`/purchases/${id}/`, data)

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Button, HStack, Input, Stack, Text, SimpleGrid, VStack, Badge } from '@chakra-ui/react'
 import { getVariants } from '../api/variants'
-import { createSale } from '../api/sales'
+import { createSale, updateSale } from '../api/sales'
 import SearchableDropdown from './SearchableDropdown'
 import SelectDropdown from './SelectDropdown'
 import { SaveIcon, XIcon } from './Icons'
@@ -20,18 +20,20 @@ const fieldInputStyles = {
     fontSize: '16px',
 }
 
-function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
+function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) {
+    const isEditing = !!editingSale
+
     const [variants, setVariants] = useState([])
     const [selectedItem, setSelectedItem] = useState(null)
     const [selectedLength, setSelectedLength] = useState(null)
     const [selectedVariant, setSelectedVariant] = useState(null)
 
-    const [partyName, setPartyName] = useState('')
-    const [partyContact, setPartyContact] = useState('')
-    const [salesmanName, setSalesmanName] = useState('')
-    const [quantity, setQuantity] = useState('')
-    const [salePrice, setSalePrice] = useState('')
-    const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+    const [partyName, setPartyName] = useState(editingSale?.party_name || '')
+    const [partyContact, setPartyContact] = useState(editingSale?.party_contact || '')
+    const [salesmanName, setSalesmanName] = useState(editingSale?.salesman_name || '')
+    const [quantity, setQuantity] = useState(editingSale ? String(editingSale.quantity ?? '') : '')
+    const [salePrice, setSalePrice] = useState(editingSale ? String(editingSale.sale_price ?? '') : '')
+    const [date, setDate] = useState(editingSale?.date || new Date().toISOString().slice(0, 10))
 
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
@@ -59,7 +61,12 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
     }
 
     useEffect(() => {
-        itemRef.current?.focus()
+        if (isEditing) {
+            quantityRef.current?.focus()
+        } else {
+            itemRef.current?.focus()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     const handleItemSelect = async (opt) => {
@@ -93,6 +100,14 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
     }
 
     const disabledReason = useMemo(() => {
+        if (isEditing) {
+            if (!quantity) return 'Enter quantity'
+            if (!salePrice) return 'Enter sale price'
+            if (!partyName.trim()) return 'Select company'
+            if (!partyContact.trim()) return 'Enter company contact'
+            if (!date) return 'Select date'
+            return ''
+        }
         if (!selectedItem) return 'Select item first'
         if (!selectedVariant) return 'Select length'
         if (Number(selectedVariant.current_stock_qty) <= 0) return 'No stock available'
@@ -103,7 +118,7 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
         if (!partyContact.trim()) return 'Enter company contact'
         if (!date) return 'Select date'
         return ''
-    }, [date, partyContact, partyName, quantity, salePrice, selectedItem, selectedVariant])
+    }, [isEditing, date, partyContact, partyName, quantity, salePrice, selectedItem, selectedVariant])
 
     const isValid = !disabledReason
 
@@ -129,27 +144,44 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
             return
         }
 
-        if (Number(quantity) > Number(selectedVariant.current_stock_qty)) {
+        if (!isEditing && Number(quantity) > Number(selectedVariant.current_stock_qty)) {
             setError('Not enough stock')
             return
         }
 
         setLoading(true)
         try {
-            await createSale({
-                variant: selectedVariant.id,
-                party_name: partyName,
-                party_contact: partyContact,
-                salesman_name: salesmanName || null,
-                quantity,
-                sale_price: salePrice,
-                date,
-            })
-            resetForm()
+            if (isEditing) {
+                await updateSale(editingSale.id, {
+                    party_name: partyName,
+                    party_contact: partyContact,
+                    salesman_name: salesmanName || null,
+                    quantity,
+                    sale_price: salePrice,
+                    date,
+                })
+            } else {
+                await createSale({
+                    variant: selectedVariant.id,
+                    party_name: partyName,
+                    party_contact: partyContact,
+                    salesman_name: salesmanName || null,
+                    quantity,
+                    sale_price: salePrice,
+                    date,
+                })
+                resetForm()
+            }
             onSaved()
         } catch (err) {
             const detail = err.response?.data?.[0] || err.response?.data?.non_field_errors?.[0]
-            setError(detail?.toLowerCase().includes('stock') ? 'Not enough stock' : 'Could not save sale. Check the values and try again.')
+            setError(
+                typeof detail === 'string' && detail.toLowerCase().includes('stock')
+                    ? 'Not enough stock'
+                    : isEditing
+                        ? 'Could not save changes. Please check the values and try again.'
+                        : 'Could not save sale. Check the values and try again.'
+            )
         } finally {
             setLoading(false)
         }
@@ -179,39 +211,63 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
                     </Field>
 
                     <Field label="Item">
-                        <SelectDropdown
-                            inputRef={itemRef}
-                            options={items}
-                            value={selectedItem?.name || ''}
-                            onSelect={handleItemSelect}
-                            onCommit={() => lengthRef.current?.focus()}
-                            onFocus={() => handleFieldFocus(itemRef)}
-                            onBlur={handleFieldBlur}
-                            enterKeyHint="next"
-                            placeholder="Type to search item"
-                        />
+                        {isEditing ? (
+                            <Input
+                                value={editingSale.item_name || ''}
+                                readOnly
+                                disabled
+                                {...fieldInputStyles}
+                                bg="gray.100"
+                                color="gray.600"
+                                cursor="not-allowed"
+                            />
+                        ) : (
+                            <SelectDropdown
+                                inputRef={itemRef}
+                                options={items}
+                                value={selectedItem?.name || ''}
+                                onSelect={handleItemSelect}
+                                onCommit={() => lengthRef.current?.focus()}
+                                onFocus={() => handleFieldFocus(itemRef)}
+                                onBlur={handleFieldBlur}
+                                enterKeyHint="next"
+                                placeholder="Type to search item"
+                            />
+                        )}
                     </Field>
 
                     <Field label="Length">
-                        <SelectDropdown
-                            inputRef={lengthRef}
-                            options={lengthOptions}
-                            value={selectedLength || ''}
-                            onSelect={handleLengthSelect}
-                            onCommit={() => quantityRef.current?.focus()}
-                            onFocus={() => handleFieldFocus(lengthRef)}
-                            onBlur={handleFieldBlur}
-                            enterKeyHint="next"
-                            placeholder="Type to search length"
-                            disabled={!selectedItem}
-                        />
+                        {isEditing ? (
+                            <Input
+                                value={editingSale.length || ''}
+                                readOnly
+                                disabled
+                                {...fieldInputStyles}
+                                bg="gray.100"
+                                color="gray.600"
+                                cursor="not-allowed"
+                            />
+                        ) : (
+                            <SelectDropdown
+                                inputRef={lengthRef}
+                                options={lengthOptions}
+                                value={selectedLength || ''}
+                                onSelect={handleLengthSelect}
+                                onCommit={() => quantityRef.current?.focus()}
+                                onFocus={() => handleFieldFocus(lengthRef)}
+                                onBlur={handleFieldBlur}
+                                enterKeyHint="next"
+                                placeholder="Type to search length"
+                                disabled={!selectedItem}
+                            />
+                        )}
                     </Field>
 
-                    {selectedItem && variants.length === 0 && (
+                    {!isEditing && selectedItem && variants.length === 0 && (
                         <FormMessage tone="error">No stock available</FormMessage>
                     )}
 
-                    {selectedVariant && (
+                    {!isEditing && selectedVariant && (
                         <Box display="flex" gap={2} flexWrap="wrap">
                             <Badge bg={Number(selectedVariant.current_stock_qty) > 0 ? 'green.50' : 'red.50'} color={Number(selectedVariant.current_stock_qty) > 0 ? 'green.700' : 'red.700'} px={3} py={1.5} borderRadius="full" fontSize="12px">
                                 In stock: {selectedVariant.current_stock_qty}
@@ -237,7 +293,7 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
                                 }}
                                 enterKeyHint="next"
                                 placeholder="0"
-                                disabled={!selectedVariant}
+                                disabled={!isEditing && !selectedVariant}
                                 {...fieldInputStyles}
                                 _disabled={{ bg: 'gray.100', color: 'gray.500', cursor: 'not-allowed' }}
                             />
@@ -264,7 +320,7 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
                         </Field>
                     </SimpleGrid>
 
-                    <Field label="Salesman optional">
+                    <Field label="Salesman">
                         <SearchableDropdown
                             inputRef={salesmanRef}
                             options={salesmen}
@@ -318,7 +374,7 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
                         <FormMessage tone="error">{error}</FormMessage>
                     )}
 
-                    {!isValid && !error && disabledReason.toLowerCase().includes('stock') && (
+                    {!isEditing && !isValid && !error && disabledReason.toLowerCase().includes('stock') && (
                         <FormMessage tone="error">
                             {disabledReason}
                         </FormMessage>
@@ -367,7 +423,7 @@ function SaleForm({ items, salesmen, parties, onSaved, onCancel }) {
                             _disabled={{ bg: 'gray.300', color: 'gray.600', cursor: 'not-allowed' }}
                         >
                             <SaveIcon />
-                            Save
+                            {isEditing ? 'Save changes' : 'Save'}
                         </Button>
                     </HStack>
                 </VStack>

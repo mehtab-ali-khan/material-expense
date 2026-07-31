@@ -26,11 +26,6 @@ const formatMoney = (value) => {
     return number.toLocaleString('en-US', { maximumFractionDigits: 2 })
 }
 
-const todayLabel = new Date().toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-})
-
 function PurchasePage() {
     const [items, setItems] = useState([])
     const [salesmen, setSalesmen] = useState([])
@@ -38,6 +33,7 @@ function PurchasePage() {
     const [lengthOptions, setLengthOptions] = useState([])
     const [purchases, setPurchases] = useState([])
     const [showForm, setShowForm] = useState(false)
+    const [editingPurchase, setEditingPurchase] = useState(null)
     const [loading, setLoading] = useState(true)
     const [toast, setToast] = useState('')
     const [search, setSearch] = useState('')
@@ -48,7 +44,6 @@ function PurchasePage() {
         return () => clearTimeout(timer)
     }, [searchInput])
 
-    const todayISO = () => new Date().toISOString().slice(0, 10)
     const [dateFilter, setDateFilter] = useState()
 
     const loadAll = async () => {
@@ -85,8 +80,28 @@ function PurchasePage() {
 
     const handleSaved = () => {
         setShowForm(false)
-        setToast('Purchase saved')
+        setEditingPurchase(null)
+        setToast(editingPurchase ? 'Purchase updated' : 'Purchase saved')
         loadAll()
+    }
+
+    const handleCancel = () => {
+        setShowForm(false)
+        setEditingPurchase(null)
+    }
+
+    const handleCardClick = (purchase) => {
+        setEditingPurchase(purchase)
+        setShowForm(true)
+    }
+
+    const handleAddNew = () => {
+        if (showForm) {
+            handleCancel()
+        } else {
+            setEditingPurchase(null)
+            setShowForm(true)
+        }
     }
 
     return (
@@ -99,7 +114,7 @@ function PurchasePage() {
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
                     <Box>
                         <Heading fontSize="24px" lineHeight="1.1" color="black">
-                            {showForm ? 'Add purchase' : 'Purchases'}
+                            {showForm ? (editingPurchase ? 'Edit purchase' : 'Add purchase') : 'Purchases'}
                         </Heading>
                     </Box>
                     <Button
@@ -114,7 +129,7 @@ function PurchasePage() {
                         fontWeight="semibold"
                         fontSize="14px"
                         _hover={{ bg: 'gray.800' }}
-                        onClick={() => setShowForm((s) => !s)}
+                        onClick={handleAddNew}
                     >
                         {showForm ? <XIcon /> : <PlusIcon />}
                         {showForm ? 'Cancel' : 'Add New'}
@@ -134,8 +149,9 @@ function PurchasePage() {
                         salesmen={salesmen}
                         parties={parties}
                         lengthOptions={lengthOptions}
+                        editingPurchase={editingPurchase}
                         onSaved={handleSaved}
-                        onCancel={() => setShowForm(false)}
+                        onCancel={handleCancel}
                     />
                 ) : loading ? (
                     <PageLoader />
@@ -155,7 +171,7 @@ function PurchasePage() {
                 ) : (
                     <VStack gap={2} align="stretch">
                         {[...purchases].sort((a, b) => new Date(b.date) - new Date(a.date) || b.id - a.id).map((p) => (
-                            <PurchaseCard key={p.id} purchase={p} />
+                            <PurchaseCard key={p.id} purchase={p} onClick={() => handleCardClick(p)} />
                         ))}
                     </VStack>
                 )}
@@ -165,7 +181,7 @@ function PurchasePage() {
     )
 }
 
-function PurchaseCard({ purchase }) {
+function PurchaseCard({ purchase, onClick }) {
     const quantity = Number(purchase.quantity)
     const price = Number(purchase.price)
     const total = Number.isFinite(quantity) && Number.isFinite(price)
@@ -173,7 +189,21 @@ function PurchaseCard({ purchase }) {
         : purchase.price
 
     return (
-        <Box bg="white" border="1px solid" borderColor="gray.100" borderRadius="xl" px={3} py={2.5}>
+        <Box
+            as="button"
+            type="button"
+            onClick={onClick}
+            w="100%"
+            textAlign="left"
+            bg="white"
+            border="1px solid"
+            borderColor="gray.100"
+            borderRadius="xl"
+            px={3}
+            py={2.5}
+            cursor="pointer"
+            _hover={{ borderColor: 'gray.300' }}
+        >
             <HStack justify="space-between" align="start" gap={3}>
                 <Box minW={0}>
                     <Text
