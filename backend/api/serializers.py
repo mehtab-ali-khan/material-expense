@@ -218,7 +218,10 @@ class PurchaseSerializer(serializers.ModelSerializer):
                 new_variant.record_purchase(new_quantity, new_price)
 
                 if old_variant.is_orphaned(exclude_purchase_id=instance.pk):
-                    old_variant.item.delete()
+                    item = old_variant.item
+                    old_variant.delete()
+                    if not item.variants.exists():
+                        item.delete()
                 instance.variant = new_variant
             else:
                 try:
@@ -370,7 +373,10 @@ class SaleSerializer(serializers.ModelSerializer):
                     raise DRFValidationError(e.message)
 
                 if old_variant.is_orphaned(exclude_sale_id=instance.pk):
-                    old_variant.item.delete()
+                    item = old_variant.item
+                    old_variant.delete()
+                    if not item.variants.exists():
+                        item.delete()
                 instance.variant = new_variant
 
                 # variant changed -> old snapshot no longer meaningful,
