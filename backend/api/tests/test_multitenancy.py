@@ -1,17 +1,11 @@
 """
 Multi-tenancy isolation tests.
-
-Core rule under test: every company's data (items, variants, salesmen,
-purchases, sales) must be completely invisible and inaccessible to every
-other company, at both the list/query level and the direct-object-access
-level (a company must not be able to act on another company's variant id
-even if it knows/guesses the id).
 """
 
 import pytest
 from decimal import Decimal
 
-from api.models import Item, ItemVariant, Salesman, Purchase, Sale
+from api.models import Item, ItemVariant, Sale
 
 pytestmark = pytest.mark.django_db
 
@@ -24,11 +18,8 @@ class TestItemIsolation:
         res_a = client_a.get("/api/items/")
         res_b = client_b.get("/api/items/")
 
-        names_a = [i["name"] for i in res_a.data]
-        names_b = [i["name"] for i in res_b.data]
-
-        assert names_a == ["Cement Bag"]
-        assert names_b == ["Steel Rod"]
+        assert [i["name"] for i in res_a.data] == ["Cement Bag"]
+        assert [i["name"] for i in res_b.data] == ["Steel Rod"]
 
     def test_same_item_name_allowed_across_different_companies(
         self, client_a, client_b
@@ -67,33 +58,25 @@ class TestVariantAndStockIsolation:
         assert [v["item_name"] for v in res_b.data] == ["Wire"]
 
     def test_company_cannot_sell_against_another_companys_variant(
-        self, client_a, client_b, variant_factory, comp_b
+        self, client_a, variant_factory, comp_b, make_sale_payload
     ):
-        # Company B owns this variant with stock.
-        variant_b = variant_factory(
-            comp_b, name="Cable", length="100m", measurement="2.5mm"
-        )
+        variant_b = variant_factory(comp_b, name="Cable", length="100m")
         variant_b.record_purchase(Decimal("50"), Decimal("10"))
 
-        # Company A tries to sell against B's variant id directly.
         res = client_a.post(
             "/api/sales/",
-            {
-                "variant": variant_b.id,
-                "quantity": "5",
-                "sale_price": "20",
-                "date": "2026-01-05",
-            },
+            make_sale_payload(
+                variant_b.id, quantity="5", sale_price="20", date="2026-01-05"
+            ),
         )
 
         assert res.status_code == 400
         variant_b.refresh_from_db()
-        # Stock must be untouched.
         assert variant_b.current_stock_qty == Decimal("50")
         assert Sale.objects.filter(variant=variant_b).count() == 0
 
     def test_company_cannot_see_variants_by_filtering_other_companys_item_id(
-        self, client_a, client_b, variant_factory, comp_b
+        self, client_a, variant_factory, comp_b
     ):
         variant_b = variant_factory(comp_b, name="Cable")
         res = client_a.get(f"/api/variants/?item={variant_b.item_id}")
@@ -115,7 +98,9 @@ class TestPurchaseSaleIsolation:
         assert res_a.data[0]["item_name"] == "Bricks"
         assert res_b.data[0]["item_name"] == "Sand"
 
-    def test_sales_scoped_per_company(self, client_a, client_b, make_purchase_payload):
+    def test_sales_scoped_per_company(
+        self, client_a, client_b, make_purchase_payload, make_sale_payload
+    ):
         client_a.post(
             "/api/purchases/", make_purchase_payload(item_name="Bricks", quantity="20")
         )
@@ -124,12 +109,7 @@ class TestPurchaseSaleIsolation:
         )
         client_a.post(
             "/api/sales/",
-            {
-                "variant": variant_a.id,
-                "quantity": "5",
-                "sale_price": "150",
-                "date": "2026-01-02",
-            },
+            make_sale_payload(variant_a.id, quantity="5", sale_price="150"),
         )
 
         res_a = client_a.get("/api/sales/")
@@ -139,7 +119,7 @@ class TestPurchaseSaleIsolation:
         assert len(res_b.data) == 0
 
     def test_profit_view_data_not_leaked_across_companies(
-        self, client_a, client_b, make_purchase_payload
+        self, client_a, client_b, make_purchase_payload, make_sale_payload
     ):
         client_a.post(
             "/api/purchases/",
@@ -148,12 +128,9 @@ class TestPurchaseSaleIsolation:
         variant_a = ItemVariant.objects.get(item__name="Paint")
         client_a.post(
             "/api/sales/",
-            {
-                "variant": variant_a.id,
-                "quantity": "2",
-                "sale_price": "80",
-                "date": "2026-01-03",
-            },
+            make_sale_payload(
+                variant_a.id, quantity="2", sale_price="80", date="2026-01-03"
+            ),
         )
 
         res_b = client_b.get("/api/sales/")
@@ -166,8 +143,6 @@ class TestAuthIsolation:
 
         client = APIClient()
         res = client.get("/api/items/")
-        # CompanyTokenAuthentication doesn't set authenticate_header(),
-        # so DRF returns 403 (not 401) when no/invalid credentials are given.
         assert res.status_code == 403
 
     def test_invalid_token_rejected(self):
@@ -176,9 +151,6 @@ class TestAuthIsolation:
         client = APIClient()
         client.credentials(HTTP_AUTHORIZATION="Token not-a-real-token")
         res = client.get("/api/items/")
-        # AuthenticationFailed is raised with status 401, but DRF's
-        # exception_handler downgrades it to 403 whenever the authenticator
-        # has no authenticate_header() defined (ours doesn't).
         assert res.status_code == 403
 
     def test_me_endpoint_returns_only_own_company(

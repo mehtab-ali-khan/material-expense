@@ -69,6 +69,8 @@ def make_purchase_payload():
         price="100",
         date="2026-01-01",
         salesman_name="",
+        party_name="Default Supplier",
+        party_contact="923001110000",
     ):
         return {
             "item_name": item_name,
@@ -78,6 +80,32 @@ def make_purchase_payload():
             "price": price,
             "date": date,
             "salesman_name": salesman_name,
+            "party_name": party_name,
+            "party_contact": party_contact,
+        }
+
+    return _make
+
+
+@pytest.fixture
+def make_sale_payload():
+    def _make(
+        variant_id,
+        quantity="1",
+        sale_price="100",
+        date="2026-01-02",
+        salesman_name="",
+        party_name="Default Buyer",
+        party_contact="923002220000",
+    ):
+        return {
+            "variant": variant_id,
+            "quantity": quantity,
+            "sale_price": sale_price,
+            "date": date,
+            "salesman_name": salesman_name,
+            "party_name": party_name,
+            "party_contact": party_contact,
         }
 
     return _make
