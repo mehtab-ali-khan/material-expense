@@ -16,7 +16,6 @@ def purchase_payload(**overrides):
     payload = {
         "item_name": "Steel Rod",
         "length": "20ft",
-        "measurement": "12mm",
         "quantity": "10",
         "price": "100",
         "date": "2026-01-01",

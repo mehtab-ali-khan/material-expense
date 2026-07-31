@@ -37,7 +37,6 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             make_purchase_payload(
                 item_name="Rod",
                 length="20ft",
-                measurement="12mm",
                 quantity="10",
                 price="100",
             ),
@@ -47,7 +46,6 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             make_purchase_payload(
                 item_name="Rod",
                 length="20ft",
-                measurement="12mm",
                 quantity="10",
                 price="200",
             ),
@@ -68,7 +66,6 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             make_purchase_payload(
                 item_name="Rod",
                 length="20ft",
-                measurement="12mm",
                 quantity="5",
                 price="10",
             ),
@@ -78,7 +75,6 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             make_purchase_payload(
                 item_name="Rod",
                 length="20ft",
-                measurement="12mm",
                 quantity="5",
                 price="999",
             ),
@@ -93,7 +89,6 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             make_purchase_payload(
                 item_name="Rod",
                 length="20ft",
-                measurement="12mm",
                 quantity="5",
                 price="10",
             ),
@@ -103,7 +98,6 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             make_purchase_payload(
                 item_name="Rod",
                 length="25ft",
-                measurement="12mm",
                 quantity="5",
                 price="10",
             ),
@@ -130,7 +124,6 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             make_purchase_payload(
                 item_name="  Steel Rod  ",
                 length=" 20ft ",
-                measurement=" 12mm ",
                 quantity="5",
                 price="10",
             ),
@@ -140,7 +133,6 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             make_purchase_payload(
                 item_name="steel rod",
                 length="20FT",
-                measurement="12MM",
                 quantity="5",
                 price="10",
             ),
