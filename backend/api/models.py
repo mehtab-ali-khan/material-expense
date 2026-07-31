@@ -216,9 +216,11 @@ class ItemVariant(models.Model):
         purchase's item/length changes on edit (moving off this variant),
         and will be reused by a future delete-purchase feature.
         """
-        if self.current_stock_qty - quantity < 0:
+        new_quantity = self.current_stock_qty - quantity
+
+        if new_quantity < 0:
             raise ValidationError(
-                "This purchase has already sold stock. Adjust the related sales first."
+                f"This purchase has already {abs(new_quantity)} sold stock. Adjust the related sales first."
             )
         self.total_purchased_qty -= quantity
         self.total_purchased_value -= quantity * price
