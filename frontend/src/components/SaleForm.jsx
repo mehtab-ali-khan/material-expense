@@ -22,10 +22,13 @@ const fieldInputStyles = {
 
 function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) {
     const isEditing = !!editingSale
+    const originalVariantId = editingSale?.variant ?? null
 
     const [variants, setVariants] = useState([])
-    const [selectedItem, setSelectedItem] = useState(null)
-    const [selectedLength, setSelectedLength] = useState(null)
+    const [selectedItem, setSelectedItem] = useState(
+        editingSale ? { id: editingSale.item_id, name: editingSale.item_name } : null
+    )
+    const [selectedLength, setSelectedLength] = useState(editingSale?.length || null)
     const [selectedVariant, setSelectedVariant] = useState(null)
 
     const [partyName, setPartyName] = useState(editingSale?.party_name || '')
@@ -37,6 +40,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
 
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
+    const [loadingVariants, setLoadingVariants] = useState(isEditing)
     const [keyboardMode, setKeyboardMode] = useState(false)
     const itemRef = useRef(null)
     const lengthRef = useRef(null)
@@ -63,8 +67,22 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
     useEffect(() => {
         if (isEditing) {
             quantityRef.current?.focus()
-        } else {
-            itemRef.current?.focus()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
+    // On edit, pre-load the variants for the sale's current item so the
+    // Length dropdown and stock badge have data right away.
+    useEffect(() => {
+        if (isEditing && editingSale?.item_id) {
+            setLoadingVariants(true)
+            getVariants(editingSale.item_id)
+                .then((res) => {
+                    setVariants(res.data)
+                    const match = res.data.find((v) => v.id === editingSale.variant)
+                    if (match) setSelectedVariant(match)
+                })
+                .finally(() => setLoadingVariants(false))
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
@@ -73,8 +91,13 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
         setSelectedItem(opt)
         setSelectedLength(null)
         setSelectedVariant(null)
-        const res = await getVariants(opt.id)
-        setVariants(res.data)
+        setLoadingVariants(true)
+        try {
+            const res = await getVariants(opt.id)
+            setVariants(res.data)
+        } finally {
+            setLoadingVariants(false)
+        }
     }
 
     const lengthOptions = [...new Set(variants.map((v) => v.length))].map((l, i) => ({ id: i, name: l }))
@@ -99,26 +122,31 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
         setPartyContact('')
     }
 
-    const disabledReason = useMemo(() => {
-        if (isEditing) {
-            if (!quantity) return 'Enter quantity'
-            if (!salePrice) return 'Enter sale price'
-            if (!partyName.trim()) return 'Select company'
-            if (!partyContact.trim()) return 'Enter company contact'
-            if (!date) return 'Select date'
-            return ''
+    // How much of selectedVariant's stock is actually available for this
+    // sale's quantity input. If we're editing and the selected variant is
+    // still the sale's original variant, the sale's own old quantity is
+    // effectively "returned" first, so it counts back toward availability.
+    const availableStock = useMemo(() => {
+        if (!selectedVariant) return 0
+        const base = Number(selectedVariant.current_stock_qty ?? 0)
+        if (isEditing && selectedVariant.id === originalVariantId) {
+            return base + Number(editingSale.quantity)
         }
+        return base
+    }, [selectedVariant, isEditing, originalVariantId, editingSale])
+
+    const disabledReason = useMemo(() => {
         if (!selectedItem) return 'Select item first'
         if (!selectedVariant) return 'Select length'
-        if (Number(selectedVariant.current_stock_qty) <= 0) return 'No stock available'
+        if (availableStock <= 0) return 'No stock available'
         if (!quantity) return 'Enter quantity'
-        if (Number(quantity) > Number(selectedVariant.current_stock_qty)) return 'Not enough stock'
+        if (Number(quantity) > availableStock) return 'Not enough stock'
         if (!salePrice) return 'Enter sale price'
         if (!partyName.trim()) return 'Select company'
         if (!partyContact.trim()) return 'Enter company contact'
         if (!date) return 'Select date'
         return ''
-    }, [isEditing, date, partyContact, partyName, quantity, salePrice, selectedItem, selectedVariant])
+    }, [availableStock, date, partyContact, partyName, quantity, salePrice, selectedItem, selectedVariant])
 
     const isValid = !disabledReason
 
@@ -144,15 +172,11 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
             return
         }
 
-        if (!isEditing && Number(quantity) > Number(selectedVariant.current_stock_qty)) {
-            setError('Not enough stock')
-            return
-        }
-
         setLoading(true)
         try {
             if (isEditing) {
                 await updateSale(editingSale.id, {
+                    variant: selectedVariant.id,
                     party_name: partyName,
                     party_contact: partyContact,
                     salesman_name: salesmanName || null,
@@ -211,66 +235,49 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
                     </Field>
 
                     <Field label="Item">
-                        {isEditing ? (
-                            <Input
-                                value={editingSale.item_name || ''}
-                                readOnly
-                                disabled
-                                {...fieldInputStyles}
-                                bg="gray.100"
-                                color="gray.600"
-                                cursor="not-allowed"
-                            />
-                        ) : (
-                            <SelectDropdown
-                                inputRef={itemRef}
-                                options={items}
-                                value={selectedItem?.name || ''}
-                                onSelect={handleItemSelect}
-                                onCommit={() => lengthRef.current?.focus()}
-                                onFocus={() => handleFieldFocus(itemRef)}
-                                onBlur={handleFieldBlur}
-                                enterKeyHint="next"
-                                placeholder="Type to search item"
-                            />
-                        )}
+                        <SelectDropdown
+                            inputRef={itemRef}
+                            options={items}
+                            value={selectedItem?.name || ''}
+                            onSelect={handleItemSelect}
+                            onCommit={() => lengthRef.current?.focus()}
+                            onFocus={() => handleFieldFocus(itemRef)}
+                            onBlur={handleFieldBlur}
+                            enterKeyHint="next"
+                            placeholder="Type to search item"
+                        />
                     </Field>
 
                     <Field label="Length">
-                        {isEditing ? (
-                            <Input
-                                value={editingSale.length || ''}
-                                readOnly
-                                disabled
-                                {...fieldInputStyles}
-                                bg="gray.100"
-                                color="gray.600"
-                                cursor="not-allowed"
-                            />
-                        ) : (
-                            <SelectDropdown
-                                inputRef={lengthRef}
-                                options={lengthOptions}
-                                value={selectedLength || ''}
-                                onSelect={handleLengthSelect}
-                                onCommit={() => quantityRef.current?.focus()}
-                                onFocus={() => handleFieldFocus(lengthRef)}
-                                onBlur={handleFieldBlur}
-                                enterKeyHint="next"
-                                placeholder="Type to search length"
-                                disabled={!selectedItem}
-                            />
-                        )}
+                        <SelectDropdown
+                            inputRef={lengthRef}
+                            options={lengthOptions}
+                            value={selectedLength || ''}
+                            onSelect={handleLengthSelect}
+                            onCommit={() => quantityRef.current?.focus()}
+                            onFocus={() => handleFieldFocus(lengthRef)}
+                            onBlur={handleFieldBlur}
+                            enterKeyHint="next"
+                            placeholder="Type to search length"
+                            disabled={!selectedItem}
+                        />
                     </Field>
 
-                    {!isEditing && selectedItem && variants.length === 0 && (
+                    {selectedItem && !loadingVariants && variants.length === 0 && (
                         <FormMessage tone="error">No stock available</FormMessage>
                     )}
 
-                    {!isEditing && selectedVariant && (
+                    {selectedVariant && (
                         <Box display="flex" gap={2} flexWrap="wrap">
-                            <Badge bg={Number(selectedVariant.current_stock_qty) > 0 ? 'green.50' : 'red.50'} color={Number(selectedVariant.current_stock_qty) > 0 ? 'green.700' : 'red.700'} px={3} py={1.5} borderRadius="full" fontSize="12px">
-                                In stock: {selectedVariant.current_stock_qty}
+                            <Badge
+                                bg={availableStock > 0 ? 'green.50' : 'red.50'}
+                                color={availableStock > 0 ? 'green.700' : 'red.700'}
+                                px={3}
+                                py={1.5}
+                                borderRadius="full"
+                                fontSize="12px"
+                            >
+                                In stock: {availableStock}
                             </Badge>
                         </Box>
                     )}
@@ -293,7 +300,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
                                 }}
                                 enterKeyHint="next"
                                 placeholder="0"
-                                disabled={!isEditing && !selectedVariant}
+                                disabled={!selectedVariant}
                                 {...fieldInputStyles}
                                 _disabled={{ bg: 'gray.100', color: 'gray.500', cursor: 'not-allowed' }}
                             />
@@ -374,7 +381,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
                         <FormMessage tone="error">{error}</FormMessage>
                     )}
 
-                    {!isEditing && !isValid && !error && disabledReason.toLowerCase().includes('stock') && (
+                    {!isValid && !error && disabledReason.toLowerCase().includes('stock') && (
                         <FormMessage tone="error">
                             {disabledReason}
                         </FormMessage>

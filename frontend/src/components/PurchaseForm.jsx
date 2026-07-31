@@ -73,9 +73,7 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase
     }
 
     useEffect(() => {
-        if (isEditing) {
-            quantityRef.current?.focus()
-        } else {
+        if (!isEditing) {
             itemRef.current?.focus()
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -121,6 +119,8 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase
         try {
             if (isEditing) {
                 await updatePurchase(editingPurchase.id, {
+                    item_name: form.itemName,
+                    length: form.length,
                     party_name: form.partyName,
                     party_contact: form.partyContact,
                     salesman_name: form.salesmanName || null,
@@ -180,59 +180,35 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase
                     </Field>
 
                     <Field label="Item">
-                        {isEditing ? (
-                            <Input
-                                value={form.itemName}
-                                readOnly
-                                disabled
-                                {...fieldInputStyles}
-                                bg="gray.100"
-                                color="gray.600"
-                                cursor="not-allowed"
-                            />
-                        ) : (
-                            <SearchableDropdown
-                                inputRef={itemRef}
-                                options={items}
-                                value={form.itemName}
-                                onChange={(val) => updateField('itemName', val)}
-                                onSelect={(opt) => updateField('itemName', opt.name)}
-                                onCreate={(text) => updateField('itemName', text)}
-                                onCommit={() => lengthRef.current?.focus()}
-                                onFocus={() => handleFieldFocus(itemRef)}
-                                onBlur={handleFieldBlur}
-                                enterKeyHint="next"
-                                placeholder="Type to search item"
-                            />
-                        )}
+                        <SearchableDropdown
+                            inputRef={itemRef}
+                            options={items}
+                            value={form.itemName}
+                            onChange={(val) => updateField('itemName', val)}
+                            onSelect={(opt) => updateField('itemName', opt.name)}
+                            onCreate={(text) => updateField('itemName', text)}
+                            onCommit={() => lengthRef.current?.focus()}
+                            onFocus={() => handleFieldFocus(itemRef)}
+                            onBlur={handleFieldBlur}
+                            enterKeyHint="next"
+                            placeholder="Type to search item"
+                        />
                     </Field>
 
                     <Field label="Length">
-                        {isEditing ? (
-                            <Input
-                                value={form.length}
-                                readOnly
-                                disabled
-                                {...fieldInputStyles}
-                                bg="gray.100"
-                                color="gray.600"
-                                cursor="not-allowed"
-                            />
-                        ) : (
-                            <SearchableDropdown
-                                inputRef={lengthRef}
-                                options={lengthOptions}
-                                value={form.length}
-                                onChange={(val) => updateField('length', val)}
-                                onSelect={(opt) => updateField('length', opt.name)}
-                                onCreate={(text) => updateField('length', text)}
-                                onCommit={() => quantityRef.current?.focus()}
-                                onFocus={() => handleFieldFocus(lengthRef)}
-                                onBlur={handleFieldBlur}
-                                enterKeyHint="next"
-                                placeholder="Type to search length"
-                            />
-                        )}
+                        <SearchableDropdown
+                            inputRef={lengthRef}
+                            options={lengthOptions}
+                            value={form.length}
+                            onChange={(val) => updateField('length', val)}
+                            onSelect={(opt) => updateField('length', opt.name)}
+                            onCreate={(text) => updateField('length', text)}
+                            onCommit={() => quantityRef.current?.focus()}
+                            onFocus={() => handleFieldFocus(lengthRef)}
+                            onBlur={handleFieldBlur}
+                            enterKeyHint="next"
+                            placeholder="Type to search length"
+                        />
                     </Field>
 
                     <SimpleGrid columns={1} gap={4}>

@@ -210,6 +210,48 @@ class ItemVariant(models.Model):
         self.current_stock_qty = new_stock
         self.save()
 
+    def remove_purchase_effect(self, quantity, price):
+        """
+        Undo the stock/avg-price effect of one purchase. Used when a
+        purchase's item/length changes on edit (moving off this variant),
+        and will be reused by a future delete-purchase feature.
+        """
+        if self.current_stock_qty - quantity < 0:
+            raise ValidationError(
+                "This purchase has already sold stock. Adjust the related sales first."
+            )
+        self.total_purchased_qty -= quantity
+        self.total_purchased_value -= quantity * price
+        self.avg_purchase_price = (
+            self.total_purchased_value / self.total_purchased_qty
+            if self.total_purchased_qty > 0
+            else Decimal("0")
+        )
+        self.current_stock_qty -= quantity
+        self.save()
+
+    def remove_sale_effect(self, quantity):
+        """
+        Undo the stock effect of one sale. Used when a sale's item/length
+        changes on edit (moving off this variant), and will be reused by
+        a future delete-sale feature. Always safe (stock only increases).
+        """
+        self.current_stock_qty += quantity
+        self.save()
+
+    def is_orphaned(self, exclude_purchase_id=None, exclude_sale_id=None):
+        purchases_qs = self.purchases.all()
+        if exclude_purchase_id:
+            purchases_qs = purchases_qs.exclude(pk=exclude_purchase_id)
+        sales_qs = self.sales.all()
+        if exclude_sale_id:
+            sales_qs = sales_qs.exclude(pk=exclude_sale_id)
+        return (
+            self.total_purchased_qty <= 0
+            and not purchases_qs.exists()
+            and not sales_qs.exists()
+        )
+
 
 class Purchase(models.Model):
     variant = models.ForeignKey(

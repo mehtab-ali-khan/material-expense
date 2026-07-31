@@ -156,7 +156,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         company = self.context["request"].user
-        variant = instance.variant
+        old_variant = instance.variant
 
         salesman = instance.salesman
         if "salesman_name" in validated_data:
@@ -185,13 +185,48 @@ class PurchaseSerializer(serializers.ModelSerializer):
         new_quantity = validated_data.get("quantity", instance.quantity)
         new_price = validated_data.get("price", instance.price)
 
+        new_item_name = validated_data.get("item_name")
+        new_length = validated_data.get("length")
+        variant_changed = bool(
+            (
+                new_item_name
+                and new_item_name.strip().lower() != old_variant.item.name.lower()
+            )
+            or (new_length and new_length.strip().lower() != old_variant.length.lower())
+        )
+
         with transaction.atomic():
-            try:
-                variant.adjust_purchase(
-                    instance.quantity, instance.price, new_quantity, new_price
+            if variant_changed:
+                item, _ = Item.objects.get_or_create(
+                    company=company,
+                    name__iexact=(new_item_name or old_variant.item.name).strip(),
+                    defaults={"name": (new_item_name or old_variant.item.name).strip()},
                 )
-            except DjangoValidationError as e:
-                raise DRFValidationError(e.message)
+                new_variant, _ = ItemVariant.objects.get_or_create(
+                    item=item,
+                    length__iexact=(new_length or old_variant.length).strip(),
+                    defaults={"length": (new_length or old_variant.length).strip()},
+                )
+
+                try:
+                    old_variant.remove_purchase_effect(
+                        instance.quantity, instance.price
+                    )
+                except DjangoValidationError as e:
+                    raise DRFValidationError(e.message)
+
+                new_variant.record_purchase(new_quantity, new_price)
+
+                if old_variant.is_orphaned(exclude_purchase_id=instance.pk):
+                    old_variant.item.delete()
+                instance.variant = new_variant
+            else:
+                try:
+                    old_variant.adjust_purchase(
+                        instance.quantity, instance.price, new_quantity, new_price
+                    )
+                except DjangoValidationError as e:
+                    raise DRFValidationError(e.message)
 
             instance.quantity = new_quantity
             instance.price = new_price
@@ -199,6 +234,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
             instance.salesman = salesman
             instance.party = party
             instance.save()
+
         return instance
 
 
@@ -231,7 +267,7 @@ class SaleSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["purchase_price_snapshot", "created_at"]
         extra_kwargs = {
-            "variant": {"required": True},
+            "variant": {"required": False},
         }
 
     def to_representation(self, instance):
@@ -239,11 +275,14 @@ class SaleSerializer(serializers.ModelSerializer):
         data["salesman_name"] = instance.salesman.name if instance.salesman else None
         data["party_name"] = instance.party.name if instance.party else None
         data["party_contact"] = instance.party.contact if instance.party else None
+        data["item_id"] = instance.variant.item_id
         return data
 
     def create(self, validated_data):
         company = self.context["request"].user
-        variant = validated_data["variant"]
+        variant = validated_data.get("variant")
+        if not variant:
+            raise DRFValidationError("variant is required.")
 
         if variant.item.company_id != company.id:
             raise DRFValidationError("Invalid variant.")
@@ -286,7 +325,7 @@ class SaleSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         company = self.context["request"].user
-        variant = instance.variant
+        old_variant = instance.variant
 
         salesman = instance.salesman
         if "salesman_name" in validated_data:
@@ -315,19 +354,42 @@ class SaleSerializer(serializers.ModelSerializer):
         new_quantity = validated_data.get("quantity", instance.quantity)
         new_sale_price = validated_data.get("sale_price", instance.sale_price)
 
+        new_variant = validated_data.get("variant")
+        variant_changed = bool(new_variant and new_variant.id != old_variant.id)
+
         with transaction.atomic():
-            try:
-                variant.adjust_sale(instance.quantity, new_quantity)
-            except DjangoValidationError as e:
-                raise DRFValidationError(e.message)
+            if variant_changed:
+                if new_variant.item.company_id != company.id:
+                    raise DRFValidationError("Invalid variant.")
+
+                old_variant.remove_sale_effect(instance.quantity)
+
+                try:
+                    new_variant.record_sale(new_quantity)
+                except DjangoValidationError as e:
+                    raise DRFValidationError(e.message)
+
+                if old_variant.is_orphaned(exclude_sale_id=instance.pk):
+                    old_variant.item.delete()
+                instance.variant = new_variant
+
+                # variant changed -> old snapshot no longer meaningful,
+                # re-snapshot against the new variant's current avg price
+                instance.purchase_price_snapshot = new_variant.avg_purchase_price
+            else:
+                try:
+                    old_variant.adjust_sale(instance.quantity, new_quantity)
+                except DjangoValidationError as e:
+                    raise DRFValidationError(e.message)
+                # purchase_price_snapshot intentionally untouched — preserved
 
             instance.quantity = new_quantity
             instance.sale_price = new_sale_price
             instance.date = validated_data.get("date", instance.date)
             instance.salesman = salesman
             instance.party = party
-            # purchase_price_snapshot intentionally untouched — preserved
             instance.save()
+
         return instance
 
 
