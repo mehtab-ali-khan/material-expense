@@ -107,7 +107,6 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             make_purchase_payload(
                 item_name="Rod",
                 length="20ft",
-                measurement="16mm",
                 quantity="5",
                 price="10",
             ),
