@@ -179,8 +179,9 @@ class ItemVariant(models.Model):
         """
         new_stock = self.current_stock_qty - old_quantity + new_quantity
         if new_stock < 0:
+            sold_stock = old_quantity - self.current_stock_qty
             raise ValidationError(
-                "Quantity cannot be less than the sold stock. Adjust the related sales first."
+                f"Quantity cannot be less than the sold stock {sold_stock}. Adjust the related sales first."
             )
 
         new_total_qty = self.total_purchased_qty - old_quantity + new_quantity
