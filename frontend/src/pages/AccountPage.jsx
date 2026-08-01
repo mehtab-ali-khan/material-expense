@@ -45,7 +45,7 @@ function AccountPage() {
                 <HStack justify="center" mt={4}>
                     <Button
                         size="sm"
-                        h="36px"
+                        h="38px"
                         px={4.5}
                         w="full"
                         borderRadius="full"

@@ -70,7 +70,7 @@ function ContactPage() {
                                 type="submit"
                                 loading={loading}
                                 size="sm"
-                                h="36px"
+                                h="38px"
                                 w="full"
                                 px={4.5}
                                 borderRadius="full"
