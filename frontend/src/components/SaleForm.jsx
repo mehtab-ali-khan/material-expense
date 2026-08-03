@@ -31,7 +31,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
     }))
     const [rows, setRows] = useState(() => isEditing ? (editingSale.items || []).map((item, index) => ({
         id: String(item.id || index + 1),
-        itemId: null,
+        itemId: item.item_id || null,
         itemName: item.item_name || '',
         length: item.length || '',
         quantity: String(item.quantity ?? ''),
@@ -91,30 +91,28 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
     }, [isEditing])
 
     useEffect(() => {
-        if (!isEditing) return
+        if (!isEditing || !editingSale?.items?.length) return
         const loadInitialVariants = async () => {
-            const editingItemId = editingSale?.item_id
-            if (!editingItemId) return
-            const res = await getVariants(editingItemId)
-            setRows((current) =>
-                current.map((row) => {
-                    const match = res.data.find((variant) => variant.id === editingSale.variant)
-                    return row.id === '1'
-                        ? {
-                            ...row,
-                            variants: res.data,
-                            selectedVariant: match || null,
-                            loadingVariants: false,
-                        }
-                        : row
-                })
-            )
+            const loaded = await Promise.all(editingSale.items.map(async (item) => {
+                if (!item.item_id) return { item, variants: [] }
+                const res = await getVariants(item.item_id)
+                return { item, variants: res.data }
+            }))
+            setRows((current) => current.map((row, index) => {
+                const { item, variants } = loaded[index] || {}
+                if (!item) return row
+                return {
+                    ...row,
+                    variants,
+                    selectedVariant: variants.find((variant) => variant.id === item.variant) || null,
+                    loadingVariants: false,
+                }
+            }))
         }
         loadInitialVariants().finally(() => {
-            setRows((current) => current.map((row) => (row.id === '1' ? { ...row, loadingVariants: false } : row)))
+            setRows((current) => current.map((row) => ({ ...row, loadingVariants: false })))
         })
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [isEditing, editingSale])
 
     const partyContactOptions = header.partyContact ? [{ id: 'current', name: header.partyContact }] : []
 
@@ -183,11 +181,13 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
             if (!row.quantity) return `Enter quantity for row ${index + 1}`
             if (!row.salePrice) return `Enter sale price for row ${index + 1}`
             const availableStock = getAvailableStock(row)
-            if (!isEditing && availableStock <= 0) return `No stock available for row ${index + 1}`
-            if (!isEditing && Number(row.quantity) > availableStock) return `Not enough stock for row ${index + 1}`
+            const originalQuantity = isEditing ? Number(editingSale.items[index]?.quantity || 0) : 0
+            const editableStock = availableStock + originalQuantity
+            if (editableStock <= 0) return `No stock available for row ${index + 1}`
+            if (Number(row.quantity) > editableStock) return `Not enough stock for row ${index + 1}`
         }
         return ''
-    }, [header, rows])
+    }, [editingSale, header, isEditing, rows])
 
     const isValid = !disabledReason
 

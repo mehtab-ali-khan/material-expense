@@ -432,6 +432,7 @@ class PurchaseLineSerializer(serializers.ModelSerializer):
 
 class SaleLineSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(required=False)
+    item_id = serializers.IntegerField(source="variant.item_id", read_only=True)
     item_name = serializers.CharField(source="variant.item.name", read_only=True)
     length = serializers.CharField(source="variant.length", read_only=True)
     purchase_price_snapshot = serializers.DecimalField(
@@ -443,6 +444,7 @@ class SaleLineSerializer(serializers.ModelSerializer):
         model = SaleItem
         fields = [
             "id",
+            "item_id",
             "variant",
             "item_name",
             "length",
@@ -525,47 +527,6 @@ class PurchaseSerializer(serializers.ModelSerializer):
                     price=item_data["price"],
                 )
         return purchase
-
-    def update(self, instance, validated_data):
-        items = validated_data.pop("items")
-        company, party, salesman = self._header(validated_data)
-        with transaction.atomic():
-            for old_item in instance.items.select_related("variant"):
-                try:
-                    old_item.variant.remove_purchase_effect(
-                        old_item.quantity, old_item.price
-                    )
-                except DjangoValidationError as exc:
-                    raise DRFValidationError(exc.message)
-
-            instance.party = party
-            instance.salesman = salesman
-            instance.date = validated_data["date"]
-            instance.save(update_fields=["party", "salesman", "date"])
-            instance.items.all().delete()
-
-            for item_data in items:
-                item_name = (item_data.get("item_name") or "").strip()
-                length = (item_data.get("length") or "").strip()
-                if not item_name or not length:
-                    raise DRFValidationError("Each item requires item_name and length.")
-                item, _ = Item.objects.get_or_create(
-                    company=company,
-                    name__iexact=item_name,
-                    defaults={"name": item_name},
-                )
-                variant, _ = ItemVariant.objects.get_or_create(
-                    item=item,
-                    length__iexact=length,
-                    defaults={"length": length},
-                )
-                PurchaseItem.objects.create(
-                    purchase=instance,
-                    variant=variant,
-                    quantity=item_data["quantity"],
-                    price=item_data["price"],
-                )
-        return instance
 
     def update(self, instance, validated_data):
         items = validated_data.pop("items")

@@ -2,6 +2,7 @@ from decimal import Decimal
 import secrets
 
 from django.db import models
+from django.db.models.functions import Lower
 from django.db import transaction
 from django.contrib.auth.hashers import make_password, check_password
 from django.core.exceptions import ValidationError
@@ -84,6 +85,9 @@ class Party(models.Model):
 
     class Meta:
         unique_together = ("company", "name")
+        constraints = [
+            models.UniqueConstraint(Lower("name"), "company", name="party_company_name_ci_unique")
+        ]
 
     def save(self, *args, **kwargs):
         self.name = self.name.strip()
@@ -100,6 +104,9 @@ class Item(models.Model):
 
     class Meta:
         unique_together = ("company", "name")
+        constraints = [
+            models.UniqueConstraint(Lower("name"), "company", name="item_company_name_ci_unique")
+        ]
 
     def save(self, *args, **kwargs):
         self.name = self.name.strip()
@@ -117,6 +124,9 @@ class Salesman(models.Model):
 
     class Meta:
         unique_together = ("company", "name")
+        constraints = [
+            models.UniqueConstraint(Lower("name"), "company", name="salesman_company_name_ci_unique")
+        ]
 
     def save(self, *args, **kwargs):
         self.name = self.name.strip()
@@ -141,6 +151,9 @@ class ItemVariant(models.Model):
 
     class Meta:
         unique_together = ("item", "length")
+        constraints = [
+            models.UniqueConstraint(Lower("length"), "item", name="variant_item_length_ci_unique")
+        ]
 
     def save(self, *args, **kwargs):
         self.length = self.length.strip()

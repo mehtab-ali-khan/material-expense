@@ -9,6 +9,15 @@ export function AuthProvider({ children }) {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
+        const handleUnauthorized = () => {
+            setCompanyName(null)
+            setProfile({ firstName: '', lastName: '', phone: '' })
+        }
+        window.addEventListener('auth:logout', handleUnauthorized)
+        return () => window.removeEventListener('auth:logout', handleUnauthorized)
+    }, [])
+
+    useEffect(() => {
         const token = localStorage.getItem('token')
         if (!token) {
             setLoading(false)
