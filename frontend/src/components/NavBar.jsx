@@ -262,6 +262,39 @@ function NavBar({ hideBottomNav = false }) {
                                     )}
                                 </NavLink>
                             ))}
+                            <Box
+                                as="button"
+                                type="button"
+                                onClick={() => {
+                                    setMoreOpen(false)
+                                    handleLogout()
+                                }}
+                                w="full"
+                            >
+                                <HStack
+                                    px={3}
+                                    py={3}
+                                    minH="52px"
+                                    borderRadius="lg"
+                                    color="gray.700"
+                                >
+                                    <Box
+                                        w="18px"
+                                        h="18px"
+                                        flexShrink={0}
+                                        display="flex"
+                                        alignItems="center"
+                                        justifyContent="center"
+                                    >
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                                            <polyline points="16 17 21 12 16 7" />
+                                            <line x1="21" y1="12" x2="9" y2="12" />
+                                        </svg>
+                                    </Box>
+                                    <Text fontSize="15px" fontWeight="medium">Log Out</Text>
+                                </HStack>
+                            </Box>
                         </VStack>
                     </Box>
                 </Box>

@@ -1,14 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
-import { Box, Button, Heading, Input, Stack, Text, VStack, HStack } from '@chakra-ui/react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Box, Button, Heading, Input, Stack, Text, VStack } from '@chakra-ui/react'
 import AppLayout from '../components/AppLayout'
 import PageLoader from '../components/PageLoader'
 import ToastMessage from '../components/ToastMessage'
 import FormMessage from '../components/FormMessage'
-import { LogOutIcon, SaveIcon, XIcon } from '../components/Icons'
+import { SaveIcon } from '../components/Icons'
 import { useAuth } from '../context/AuthContext'
 import { updateMe } from '../api/auth'
-import { formatPhoneDisplay } from '../utils/phone'
 
 const fieldInputStyles = {
     bg: 'white',
@@ -23,21 +21,9 @@ const fieldInputStyles = {
     fontSize: '16px',
 }
 
-const readOnlyStyles = {
-    ...fieldInputStyles,
-    bg: 'gray.50',
-    borderColor: 'gray.200',
-    color: 'gray.700',
-    cursor: 'default',
-    _hover: { borderColor: 'gray.200' },
-    _focus: { borderColor: 'gray.200', boxShadow: 'none' },
-}
-
 function ProfilePage() {
-    const { companyName, profile, updateProfile, logout } = useAuth()
-    const navigate = useNavigate()
+    const { companyName, profile, updateProfile } = useAuth()
 
-    const [editing, setEditing] = useState(false)
     const [firstName, setFirstName] = useState(profile.firstName || '')
     const [lastName, setLastName] = useState(profile.lastName || '')
     const [phone, setPhone] = useState(profile.phone || '')
@@ -46,50 +32,24 @@ function ProfilePage() {
     const [loading, setLoading] = useState(false)
     const [toast, setToast] = useState('')
 
-    const firstNameRef = useRef(null)
-
+    // Resync local fields whenever the source of truth changes
+    // (e.g. right after a successful save, or if profile loads late)
     useEffect(() => {
-        if (!editing) {
-            setFirstName(profile.firstName || '')
-            setLastName(profile.lastName || '')
-            setPhone(profile.phone || '')
-            setName(companyName || '')
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [profile.firstName, profile.lastName, profile.phone, companyName])
-
-    const handleEdit = (e) => {
-        e?.preventDefault()
-        e?.stopPropagation()
-        setError('')
-        setEditing(true)
-        window.setTimeout(() => {
-            firstNameRef.current?.focus()
-            firstNameRef.current?.select?.()
-        }, 50)
-    }
-
-    const handleCancel = (e) => {
-        e?.preventDefault()
-        e?.stopPropagation()
         setFirstName(profile.firstName || '')
         setLastName(profile.lastName || '')
         setPhone(profile.phone || '')
         setName(companyName || '')
-        setError('')
-        setEditing(false)
-    }
+    }, [profile.firstName, profile.lastName, profile.phone, companyName])
 
-    const handleLogout = (e) => {
-        e?.preventDefault()
-        e?.stopPropagation()
-        logout()
-        navigate('/login')
-    }
+    const isDirty =
+        firstName !== (profile.firstName || '') ||
+        lastName !== (profile.lastName || '') ||
+        phone !== (profile.phone || '') ||
+        name !== (companyName || '')
 
     const handleSubmit = async (e) => {
         e.preventDefault()
-        if (!editing) return
+        if (!isDirty) return
         setError('')
 
         if (!firstName.trim() || !lastName.trim() || !phone.trim() || !name.trim()) {
@@ -105,8 +65,7 @@ function ProfilePage() {
                 phone: phone.trim(),
                 name: name.trim(),
             })
-            updateProfile(res.data)
-            setEditing(false)
+            updateProfile(res.data) // triggers the useEffect above, reflecting new values immediately
             setToast('Profile updated')
         } catch (err) {
             const data = err.response?.data
@@ -135,12 +94,10 @@ function ProfilePage() {
                     <VStack gap={3} align="stretch">
                         <Field label="First name">
                             <Input
-                                ref={firstNameRef}
                                 value={firstName}
                                 onChange={(e) => setFirstName(e.target.value)}
-                                readOnly={!editing}
                                 enterKeyHint="next"
-                                {...(editing ? fieldInputStyles : readOnlyStyles)}
+                                {...fieldInputStyles}
                             />
                         </Field>
 
@@ -148,9 +105,8 @@ function ProfilePage() {
                             <Input
                                 value={lastName}
                                 onChange={(e) => setLastName(e.target.value)}
-                                readOnly={!editing}
                                 enterKeyHint="next"
-                                {...(editing ? fieldInputStyles : readOnlyStyles)}
+                                {...fieldInputStyles}
                             />
                         </Field>
 
@@ -158,11 +114,10 @@ function ProfilePage() {
                             <Input
                                 type="tel"
                                 inputMode="tel"
-                                value={editing ? phone : (formatPhoneDisplay(phone) || 'Not added')}
+                                value={phone}
                                 onChange={(e) => setPhone(e.target.value)}
-                                readOnly={!editing}
                                 enterKeyHint="next"
-                                {...(editing ? fieldInputStyles : readOnlyStyles)}
+                                {...fieldInputStyles}
                             />
                         </Field>
 
@@ -170,90 +125,33 @@ function ProfilePage() {
                             <Input
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                readOnly={!editing}
                                 enterKeyHint="done"
-                                {...(editing ? fieldInputStyles : readOnlyStyles)}
+                                {...fieldInputStyles}
                             />
                         </Field>
 
                         {error && <FormMessage tone="error">{error}</FormMessage>}
 
-                        {editing && (
-                            <HStack justify="center" gap={3} mt={2}>
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    h="38px"
-                                    flex="1"
-                                    borderRadius="full"
-                                    variant="outline"
-                                    color="black"
-                                    borderColor="gray.300"
-                                    fontWeight="semibold"
-                                    fontSize="14px"
-                                    onClick={handleCancel}
-                                    disabled={loading}
-                                >
-                                    <XIcon boxSize={4} />
-                                    Cancel
-                                </Button>
-                                <Button
-                                    type="submit"
-                                    loading={loading}
-                                    size="sm"
-                                    h="38px"
-                                    flex="1"
-                                    borderRadius="full"
-                                    bg="black"
-                                    color="white"
-                                    fontWeight="semibold"
-                                    fontSize="14px"
-                                    _hover={{ bg: 'gray.800' }}
-                                >
-                                    <SaveIcon boxSize={4} />
-                                    Save
-                                </Button>
-                            </HStack>
-                        )}
-                    </VStack>
-                </form>
-
-                {!editing && (
-                    <HStack justify="center" gap={3} mt={5}>
                         <Button
-                            type="button"
+                            type="submit"
+                            loading={loading}
+                            disabled={!isDirty || loading}
                             size="sm"
                             h="38px"
-                            flex="1"
-                            borderRadius="full"
-                            variant="outline"
-                            color="black"
-                            borderColor="gray.300"
-                            fontWeight="semibold"
-                            fontSize="14px"
-                            onClick={handleLogout}
-                        >
-                            <LogOutIcon boxSize={4} />
-                            Log out
-                        </Button>
-                        <Button
-                            type="button"
-                            size="sm"
-                            h="38px"
-                            flex="1"
                             borderRadius="full"
                             bg="black"
                             color="white"
                             fontWeight="semibold"
                             fontSize="14px"
                             _hover={{ bg: 'gray.800' }}
-                            onClick={handleEdit}
+                            _disabled={{ bg: 'gray.300', color: 'gray.500', cursor: 'not-allowed' }}
+                            mt={2}
                         >
                             <SaveIcon boxSize={4} />
-                            Edit
+                            Save
                         </Button>
-                    </HStack>
-                )}
+                    </VStack>
+                </form>
             </Box>
             <ToastMessage message={toast} onDone={() => setToast('')} />
         </AppLayout>
