@@ -100,6 +100,8 @@ function ProfitPage() {
 }
 
 function ProfitCard({ sale }) {
+    const items = sale.items || []
+
     return (
         <Box bg="white" border="1px solid" borderColor="gray.100" borderRadius="xl" px={3} py={2.5}>
             <HStack justify="space-between" align="start" gap={3}>
@@ -113,10 +115,10 @@ function ProfitCard({ sale }) {
                         textOverflow="ellipsis"
                         whiteSpace="nowrap"
                     >
-                        {sale.item_name}
+                        {sale.party_name || 'No company'}
                     </Text>
                     <Text fontSize="12px" color="gray.500" lineHeight="1.3">
-                        {sale.length}{sale.party_name ? ` · ${sale.party_name}` : ''}
+                        {formatDisplayDate(sale.date)} · {items.length} item{items.length === 1 ? '' : 's'}
                     </Text>
                 </Box>
                 <Text
@@ -131,10 +133,31 @@ function ProfitCard({ sale }) {
                 </Text>
             </HStack>
 
-            <Text mt={1.5} fontSize="12px" color="gray.600" lineHeight="1.35">
-                {sale.quantity} qty · sale {formatNumber(sale.sale_price)} · cost {formatNumber(sale.purchase_price_snapshot)} · {formatDisplayDate(sale.date)}
-                {sale.salesman_name ? ` · ${sale.salesman_name}` : ''}
-            </Text>
+            <VStack mt={3} gap={2} align="stretch">
+                {items.map((item) => (
+                    <Box key={item.id} bg="gray.50" borderRadius="lg" px={2.5} py={2}>
+                        <HStack justify="space-between" align="start" gap={2}>
+                            <Box minW={0}>
+                                <Text fontSize="14px" color="black" fontWeight="semibold" lineHeight="1.25">
+                                    {item.item_name}
+                                </Text>
+                                <Text fontSize="12px" color="gray.500" lineHeight="1.35">
+                                    {item.length} · {item.quantity} qty · sale {formatNumber(item.sale_price)} · cost {formatNumber(item.purchase_price_snapshot)}
+                                </Text>
+                            </Box>
+                            <Text fontSize="14px" color="black" fontWeight="bold" whiteSpace="nowrap">
+                                {formatNumber(item.profit)}
+                            </Text>
+                        </HStack>
+                    </Box>
+                ))}
+            </VStack>
+
+            {sale.salesman_name && (
+                <Text mt={2} fontSize="12px" color="gray.600" lineHeight="1.35">
+                    Salesman: {sale.salesman_name}
+                </Text>
+            )}
         </Box>
     )
 }

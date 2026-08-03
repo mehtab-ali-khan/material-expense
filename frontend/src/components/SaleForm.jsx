@@ -4,7 +4,7 @@ import { getVariants } from '../api/variants'
 import { createSale, updateSale } from '../api/sales'
 import SearchableDropdown from './SearchableDropdown'
 import SelectDropdown from './SelectDropdown'
-import { SaveIcon, XIcon } from './Icons'
+import { PlusIcon, SaveIcon, XIcon } from './Icons'
 import FormMessage from './FormMessage'
 
 const fieldInputStyles = {
@@ -22,34 +22,54 @@ const fieldInputStyles = {
 
 function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) {
     const isEditing = !!editingSale
-    const originalVariantId = editingSale?.variant ?? null
 
-    const [variants, setVariants] = useState([])
-    const [selectedItem, setSelectedItem] = useState(
-        editingSale ? { id: editingSale.item_id, name: editingSale.item_name } : null
-    )
-    const [selectedLength, setSelectedLength] = useState(editingSale?.length || null)
-    const [selectedVariant, setSelectedVariant] = useState(null)
-
-    const [partyName, setPartyName] = useState(editingSale?.party_name || '')
-    const [partyContact, setPartyContact] = useState(editingSale?.party_contact || '')
-    const [salesmanName, setSalesmanName] = useState(editingSale?.salesman_name || '')
-    const [quantity, setQuantity] = useState(editingSale ? String(editingSale.quantity ?? '') : '')
-    const [salePrice, setSalePrice] = useState(editingSale ? String(editingSale.sale_price ?? '') : '')
-    const [date, setDate] = useState(editingSale?.date || new Date().toISOString().slice(0, 10))
+    const [header, setHeader] = useState(() => ({
+        partyName: editingSale?.party_name || '',
+        partyContact: editingSale?.party_contact || '',
+        salesmanName: editingSale?.salesman_name || '',
+        date: editingSale?.date || new Date().toISOString().slice(0, 10),
+    }))
+    const [rows, setRows] = useState(() => isEditing ? (editingSale.items || []).map((item, index) => ({
+        id: String(item.id || index + 1),
+        itemId: null,
+        itemName: item.item_name || '',
+        length: item.length || '',
+        quantity: String(item.quantity ?? ''),
+        salePrice: String(item.sale_price ?? ''),
+        variants: [{ id: item.variant, length: item.length, current_stock_qty: 0 }],
+        selectedVariant: { id: item.variant, length: item.length, current_stock_qty: 0 },
+        loadingVariants: false,
+    })) : [{
+        id: Date.now().toString(),
+        itemId: null,
+        itemName: '',
+        length: '',
+        quantity: '',
+        salePrice: '',
+        variants: [],
+        selectedVariant: null,
+        loadingVariants: false,
+    }])
 
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
-    const [loadingVariants, setLoadingVariants] = useState(isEditing)
     const [keyboardMode, setKeyboardMode] = useState(false)
-    const itemRef = useRef(null)
-    const lengthRef = useRef(null)
     const dateRef = useRef(null)
     const partyRef = useRef(null)
     const partyContactRef = useRef(null)
     const salesmanRef = useRef(null)
-    const quantityRef = useRef(null)
-    const priceRef = useRef(null)
+    const rowRefs = useRef({})
+
+    const updateHeader = (field, value) => setHeader((current) => ({ ...current, [field]: value }))
+    const updateRow = (rowId, field, value) => {
+        setRows((current) => current.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)))
+    }
+    const setRowRef = (rowId, field) => (element) => {
+        rowRefs.current[rowId] = { ...rowRefs.current[rowId], [field]: element }
+    }
+    const focusRowField = (rowId, field) => {
+        rowRefs.current[rowId]?.[field]?.focus()
+    }
 
     const scrollFieldToTop = (ref) => {
         window.setTimeout(() => {
@@ -58,7 +78,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
     }
     const handleFieldFocus = (ref) => {
         setKeyboardMode(true)
-        scrollFieldToTop(ref)
+        if (ref) scrollFieldToTop(ref)
     }
     const handleFieldBlur = () => {
         window.setTimeout(() => setKeyboardMode(false), 120)
@@ -66,101 +86,129 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
 
     useEffect(() => {
         if (isEditing) {
-            quantityRef.current?.focus()
+            dateRef.current?.focus()
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [isEditing])
 
-    // On edit, pre-load the variants for the sale's current item so the
-    // Length dropdown and stock badge have data right away.
     useEffect(() => {
-        if (isEditing && editingSale?.item_id) {
-            setLoadingVariants(true)
-            getVariants(editingSale.item_id)
-                .then((res) => {
-                    setVariants(res.data)
-                    const match = res.data.find((v) => v.id === editingSale.variant)
-                    if (match) setSelectedVariant(match)
+        if (!isEditing) return
+        const loadInitialVariants = async () => {
+            const editingItemId = editingSale?.item_id
+            if (!editingItemId) return
+            const res = await getVariants(editingItemId)
+            setRows((current) =>
+                current.map((row) => {
+                    const match = res.data.find((variant) => variant.id === editingSale.variant)
+                    return row.id === '1'
+                        ? {
+                            ...row,
+                            variants: res.data,
+                            selectedVariant: match || null,
+                            loadingVariants: false,
+                        }
+                        : row
                 })
-                .finally(() => setLoadingVariants(false))
+            )
         }
+        loadInitialVariants().finally(() => {
+            setRows((current) => current.map((row) => (row.id === '1' ? { ...row, loadingVariants: false } : row)))
+        })
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    const handleItemSelect = async (opt) => {
-        setSelectedItem(opt)
-        setSelectedLength(null)
-        setSelectedVariant(null)
-        setLoadingVariants(true)
-        try {
-            const res = await getVariants(opt.id)
-            setVariants(res.data)
-        } finally {
-            setLoadingVariants(false)
-        }
-    }
-
-    const lengthOptions = [...new Set(variants.map((v) => v.length))].map((l, i) => ({ id: i, name: l }))
-
-    const handleLengthSelect = (opt) => {
-        setSelectedLength(opt.name)
-        const variant = variants.find((v) => v.length === opt.name)
-        setSelectedVariant(variant || null)
-    }
-
-    const partyContactOptions = partyContact
-        ? [{ id: 'current', name: partyContact }]
-        : []
+    const partyContactOptions = header.partyContact ? [{ id: 'current', name: header.partyContact }] : []
 
     const handlePartySelect = (opt) => {
-        setPartyName(opt.name)
-        setPartyContact(opt.contact || '')
+        updateHeader('partyName', opt.name)
+        updateHeader('partyContact', opt.contact || '')
     }
 
     const handlePartyCreate = (text) => {
-        setPartyName(text)
-        setPartyContact('')
+        updateHeader('partyName', text)
+        updateHeader('partyContact', '')
     }
 
-    // How much of selectedVariant's stock is actually available for this
-    // sale's quantity input. If we're editing and the selected variant is
-    // still the sale's original variant, the sale's own old quantity is
-    // effectively "returned" first, so it counts back toward availability.
-    const availableStock = useMemo(() => {
-        if (!selectedVariant) return 0
-        const base = Number(selectedVariant.current_stock_qty ?? 0)
-        if (isEditing && selectedVariant.id === originalVariantId) {
-            return base + Number(editingSale.quantity)
-        }
-        return base
-    }, [selectedVariant, isEditing, originalVariantId, editingSale])
+    const handleAddRow = () => {
+        setRows((current) => [
+            ...current,
+            {
+                id: Date.now().toString(),
+                itemId: null,
+                itemName: '',
+                length: '',
+                quantity: '',
+                salePrice: '',
+                variants: [],
+                selectedVariant: null,
+                loadingVariants: false,
+            },
+        ])
+    }
+
+    const removeRow = (rowId) => {
+        setRows((current) => (current.length > 1 ? current.filter((row) => row.id !== rowId) : current))
+    }
+
+    const handleItemSelect = async (rowId, opt) => {
+        updateRow(rowId, 'itemId', opt.id)
+        updateRow(rowId, 'itemName', opt.name)
+        updateRow(rowId, 'length', '')
+        updateRow(rowId, 'selectedVariant', null)
+        updateRow(rowId, 'loadingVariants', true)
+        const res = await getVariants(opt.id)
+        updateRow(rowId, 'variants', res.data)
+        updateRow(rowId, 'loadingVariants', false)
+    }
+
+    const handleLengthSelect = (rowId, opt) => {
+        const row = rows.find((current) => current.id === rowId)
+        const variant = row?.variants.find((variantItem) => variantItem.length === opt.name) || null
+        updateRow(rowId, 'length', opt.name)
+        updateRow(rowId, 'selectedVariant', variant)
+    }
+
+    const getAvailableStock = (row) => {
+        if (!row.selectedVariant) return 0
+        return Number(row.selectedVariant.current_stock_qty ?? 0)
+    }
 
     const disabledReason = useMemo(() => {
-        if (!selectedItem) return 'Select item first'
-        if (!selectedVariant) return 'Select length'
-        if (availableStock <= 0) return 'No stock available'
-        if (!quantity) return 'Enter quantity'
-        if (Number(quantity) > availableStock) return 'Not enough stock'
-        if (!salePrice) return 'Enter sale price'
-        if (!partyName.trim()) return 'Select company'
-        if (!partyContact.trim()) return 'Enter company contact'
-        if (!date) return 'Select date'
+        if (!header.partyName.trim()) return 'Select company'
+        if (!header.partyContact.trim()) return 'Enter company contact'
+        if (!header.date) return 'Select date'
+        for (let index = 0; index < rows.length; index += 1) {
+            const row = rows[index]
+            if (!row.itemName.trim()) return `Select item for row ${index + 1}`
+            if (!row.length.trim()) return `Select length for row ${index + 1}`
+            if (!row.quantity) return `Enter quantity for row ${index + 1}`
+            if (!row.salePrice) return `Enter sale price for row ${index + 1}`
+            const availableStock = getAvailableStock(row)
+            if (!isEditing && availableStock <= 0) return `No stock available for row ${index + 1}`
+            if (!isEditing && Number(row.quantity) > availableStock) return `Not enough stock for row ${index + 1}`
+        }
         return ''
-    }, [availableStock, date, partyContact, partyName, quantity, salePrice, selectedItem, selectedVariant])
+    }, [header, rows])
 
     const isValid = !disabledReason
 
     const resetForm = () => {
-        setSelectedItem(null)
-        setSelectedLength(null)
-        setSelectedVariant(null)
-        setVariants([])
-        setPartyName('')
-        setPartyContact('')
-        setSalesmanName('')
-        setQuantity('')
-        setSalePrice('')
-        setDate(new Date().toISOString().slice(0, 10))
+        setHeader({
+            partyName: '',
+            partyContact: '',
+            salesmanName: '',
+            date: new Date().toISOString().slice(0, 10),
+        })
+        setRows([{
+            id: Date.now().toString(),
+            itemId: null,
+            itemName: '',
+            length: '',
+            quantity: '',
+            salePrice: '',
+            variants: [],
+            selectedVariant: null,
+            loadingVariants: false,
+        }])
     }
 
     const handleSubmit = async (e) => {
@@ -176,23 +224,27 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
         try {
             if (isEditing) {
                 await updateSale(editingSale.id, {
-                    variant: selectedVariant.id,
-                    party_name: partyName,
-                    party_contact: partyContact,
-                    salesman_name: salesmanName || null,
-                    quantity,
-                    sale_price: salePrice,
-                    date,
+                    party_name: header.partyName,
+                    party_contact: header.partyContact,
+                    salesman_name: header.salesmanName || null,
+                    date: header.date,
+                    items: rows.map((row) => ({
+                        variant: row.selectedVariant.id,
+                        quantity: row.quantity,
+                        sale_price: row.salePrice,
+                    })),
                 })
             } else {
                 await createSale({
-                    variant: selectedVariant.id,
-                    party_name: partyName,
-                    party_contact: partyContact,
-                    salesman_name: salesmanName || null,
-                    quantity,
-                    sale_price: salePrice,
-                    date,
+                    party_name: header.partyName,
+                    party_contact: header.partyContact,
+                    salesman_name: header.salesmanName || null,
+                    date: header.date,
+                    items: rows.map((row) => ({
+                        variant: row.selectedVariant.id,
+                        quantity: row.quantity,
+                        sale_price: row.salePrice,
+                    })),
                 })
                 resetForm()
             }
@@ -204,7 +256,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
                     ? 'Not enough stock'
                     : isEditing
                         ? 'Could not save changes. Please check the values and try again.'
-                        : 'Could not save sale. Check the values and try again.'
+                        : 'Could not save sale(s). Check the values and try again.'
             )
         } finally {
             setLoading(false)
@@ -221,134 +273,24 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
                         ? 'calc(132px + env(safe-area-inset-bottom))'
                         : 'calc(88px + env(safe-area-inset-bottom))'}
                 >
-                    <Field label="">
+                    <Field label="Date">
                         <Input
                             ref={dateRef}
                             type="date"
-                            value={date}
-                            onChange={(e) => setDate(e.target.value)}
+                            value={header.date}
+                            onChange={(e) => updateHeader('date', e.target.value)}
                             onFocus={() => handleFieldFocus(dateRef)}
                             onBlur={handleFieldBlur}
                             enterKeyHint="next"
                             {...fieldInputStyles}
                         />
                     </Field>
-
-                    <Field label="Item">
-                        <SelectDropdown
-                            inputRef={itemRef}
-                            options={items}
-                            value={selectedItem?.name || ''}
-                            onSelect={handleItemSelect}
-                            onCommit={() => lengthRef.current?.focus()}
-                            onFocus={() => handleFieldFocus(itemRef)}
-                            onBlur={handleFieldBlur}
-                            enterKeyHint="next"
-                            placeholder="Type to search item"
-                        />
-                    </Field>
-
-                    <Field label="Length">
-                        <SelectDropdown
-                            inputRef={lengthRef}
-                            options={lengthOptions}
-                            value={selectedLength || ''}
-                            onSelect={handleLengthSelect}
-                            onCommit={() => quantityRef.current?.focus()}
-                            onFocus={() => handleFieldFocus(lengthRef)}
-                            onBlur={handleFieldBlur}
-                            enterKeyHint="next"
-                            placeholder="Type to search length"
-                            disabled={!selectedItem}
-                        />
-                    </Field>
-
-                    {selectedItem && !loadingVariants && variants.length === 0 && (
-                        <FormMessage tone="error">No stock available</FormMessage>
-                    )}
-
-                    {selectedVariant && (
-                        <Box display="flex" gap={2} flexWrap="wrap">
-                            <Badge
-                                bg={availableStock > 0 ? 'green.50' : 'red.50'}
-                                color={availableStock > 0 ? 'green.700' : 'red.700'}
-                                px={3}
-                                py={1.5}
-                                borderRadius="full"
-                                fontSize="12px"
-                            >
-                                In stock: {availableStock}
-                            </Badge>
-                        </Box>
-                    )}
-
-                    <SimpleGrid columns={1} gap={4}>
-                        <Field label="Qty">
-                            <Input
-                                ref={quantityRef}
-                                type="number"
-                                inputMode="numeric"
-                                value={quantity}
-                                onChange={(e) => setQuantity(e.target.value)}
-                                onFocus={() => handleFieldFocus(quantityRef)}
-                                onBlur={handleFieldBlur}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault()
-                                        priceRef.current?.focus()
-                                    }
-                                }}
-                                enterKeyHint="next"
-                                placeholder="0"
-                                disabled={!selectedVariant}
-                                {...fieldInputStyles}
-                                _disabled={{ bg: 'gray.100', color: 'gray.500', cursor: 'not-allowed' }}
-                            />
-                        </Field>
-                        <Field label="Sale price">
-                            <Input
-                                ref={priceRef}
-                                type="number"
-                                inputMode="decimal"
-                                value={salePrice}
-                                onChange={(e) => setSalePrice(e.target.value)}
-                                onFocus={() => handleFieldFocus(priceRef)}
-                                onBlur={handleFieldBlur}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault()
-                                        salesmanRef.current?.focus()
-                                    }
-                                }}
-                                enterKeyHint="next"
-                                placeholder="0"
-                                {...fieldInputStyles}
-                            />
-                        </Field>
-                    </SimpleGrid>
-
-                    <Field label="Salesman">
-                        <SearchableDropdown
-                            inputRef={salesmanRef}
-                            options={salesmen}
-                            value={salesmanName}
-                            onChange={setSalesmanName}
-                            onSelect={(opt) => setSalesmanName(opt.name)}
-                            onCreate={(text) => setSalesmanName(text)}
-                            onCommit={() => partyRef.current?.focus()}
-                            onFocus={() => handleFieldFocus(salesmanRef)}
-                            onBlur={handleFieldBlur}
-                            enterKeyHint="next"
-                            placeholder="Optional"
-                        />
-                    </Field>
-
                     <Field label="Company">
                         <SearchableDropdown
                             inputRef={partyRef}
                             options={parties}
-                            value={partyName}
-                            onChange={setPartyName}
+                            value={header.partyName}
+                            onChange={(val) => updateHeader('partyName', val)}
                             onSelect={handlePartySelect}
                             onCreate={handlePartyCreate}
                             onCommit={() => partyContactRef.current?.focus()}
@@ -363,28 +305,160 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
                         <SearchableDropdown
                             inputRef={partyContactRef}
                             options={partyContactOptions}
-                            value={partyContact}
-                            onChange={(val) => setPartyContact(val.replace(/[^\d+]/g, ''))}
-                            onSelect={(opt) => setPartyContact(opt.name)}
-                            onCreate={(text) => setPartyContact(text)}
-                            onCommit={() => partyContactRef.current?.blur()}
+                            value={header.partyContact}
+                            onChange={(val) => updateHeader('partyContact', val.replace(/[^\d+]/g, ''))}
+                            onSelect={(opt) => updateHeader('partyContact', opt.name)}
+                            onCreate={(text) => updateHeader('partyContact', text)}
+                            onCommit={() => salesmanRef.current?.focus()}
                             onFocus={() => handleFieldFocus(partyContactRef)}
                             onBlur={handleFieldBlur}
-                            enterKeyHint="done"
+                            enterKeyHint="next"
                             placeholder="Enter contact number"
                             type="text"
                             inputMode="numeric"
                         />
                     </Field>
 
-                    {error && (
-                        <FormMessage tone="error">{error}</FormMessage>
+                    <Field label="Salesman">
+                        <SearchableDropdown
+                            inputRef={salesmanRef}
+                            options={salesmen}
+                            value={header.salesmanName}
+                            onChange={(val) => updateHeader('salesmanName', val)}
+                            onSelect={(opt) => updateHeader('salesmanName', opt.name)}
+                            onCreate={(text) => updateHeader('salesmanName', text)}
+                            onFocus={() => handleFieldFocus(salesmanRef)}
+                            onBlur={handleFieldBlur}
+                            enterKeyHint="next"
+                            placeholder="Optional"
+                        />
+                    </Field>
+
+                    {rows.map((row, index) => {
+                        const availableStock = getAvailableStock(row)
+                        return (
+                            <Box key={row.id} bg="white" p={3} borderRadius="xl" borderWidth="1px" borderColor="gray.200">
+                                <VStack align="stretch" gap={3}>
+                                    <HStack justify="space-between" align="center">
+                                        <Text fontWeight="semibold" fontSize="14px" color="gray.600">Item {index + 1}</Text>
+                                        {!isEditing && rows.length > 1 && (
+                                            <Button size="sm" variant="ghost" color="gray.500" _hover={{ bg: 'gray.50', color: 'black' }} onClick={() => removeRow(row.id)}>
+                                                Remove
+                                            </Button>
+                                        )}
+                                    </HStack>
+                                    {row.selectedVariant && (
+                                        <Badge
+                                            alignSelf="flex-start"
+                                            bg={availableStock > 0 ? 'gray.100' : 'red.50'}
+                                            color={availableStock > 0 ? 'gray.700' : 'red.700'}
+                                            px={3}
+                                            py={1.5}
+                                            borderRadius="full"
+                                            fontSize="12px"
+                                        >
+                                            In stock: {availableStock}
+                                        </Badge>
+                                    )}
+                                    <Field label="Item">
+                                        <SelectDropdown
+                                            inputRef={setRowRef(row.id, 'item')}
+                                            options={items}
+                                            value={row.itemName}
+                                            onSelect={(opt) => handleItemSelect(row.id, opt)}
+                                            onCommit={() => focusRowField(row.id, 'length')}
+                                            onFocus={() => handleFieldFocus(rowRefs.current[row.id]?.item ? { current: rowRefs.current[row.id].item } : null)}
+                                            onBlur={handleFieldBlur}
+                                            enterKeyHint="next"
+                                            placeholder="Type to search item"
+                                        />
+                                    </Field>
+                                    <Field label="Length">
+                                        <SelectDropdown
+                                            inputRef={setRowRef(row.id, 'length')}
+                                            options={[...new Set(row.variants.map((variant) => variant.length))].map((length, idx) => ({ id: idx, name: length }))}
+                                            value={row.length}
+                                            onSelect={(opt) => handleLengthSelect(row.id, opt)}
+                                            onCommit={() => focusRowField(row.id, 'quantity')}
+                                            onFocus={() => handleFieldFocus(rowRefs.current[row.id]?.length ? { current: rowRefs.current[row.id].length } : null)}
+                                            onBlur={handleFieldBlur}
+                                            enterKeyHint="next"
+                                            placeholder="Type to search length"
+                                            disabled={!row.itemName}
+                                        />
+                                    </Field>
+                                    {row.itemName && !row.loadingVariants && row.variants.length === 0 && (
+                                        <FormMessage tone="error">No stock available</FormMessage>
+                                    )}
+                                    <SimpleGrid columns={2} gap={4}>
+                                        <Field label="Qty">
+                                            <Input
+                                                ref={setRowRef(row.id, 'quantity')}
+                                                type="number"
+                                                inputMode="numeric"
+                                                value={row.quantity}
+                                                onChange={(e) => updateRow(row.id, 'quantity', e.target.value)}
+                                                onFocus={() => handleFieldFocus(rowRefs.current[row.id]?.quantity ? { current: rowRefs.current[row.id].quantity } : null)}
+                                                onBlur={handleFieldBlur}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault()
+                                                        focusRowField(row.id, 'salePrice')
+                                                    }
+                                                }}
+                                                enterKeyHint="next"
+                                                placeholder="0"
+                                                disabled={!row.selectedVariant}
+                                                {...fieldInputStyles}
+                                                _disabled={{ bg: 'gray.100', color: 'gray.500', cursor: 'not-allowed' }}
+                                            />
+                                        </Field>
+                                        <Field label="Price">
+                                            <Input
+                                                ref={setRowRef(row.id, 'salePrice')}
+                                                type="number"
+                                                inputMode="decimal"
+                                                value={row.salePrice}
+                                                onChange={(e) => updateRow(row.id, 'salePrice', e.target.value)}
+                                                onFocus={() => handleFieldFocus(rowRefs.current[row.id]?.salePrice ? { current: rowRefs.current[row.id].salePrice } : null)}
+                                                onBlur={handleFieldBlur}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault()
+                                                        salesmanRef.current?.focus()
+                                                    }
+                                                }}
+                                                enterKeyHint="next"
+                                                placeholder="0"
+                                                {...fieldInputStyles}
+                                            />
+                                        </Field>
+                                    </SimpleGrid>
+                                </VStack>
+                            </Box>
+                        )
+                    })}
+
+                    {!isEditing && (
+                        <Button
+                            type="button"
+                            onClick={handleAddRow}
+                            variant="outline"
+                            color="black"
+                            bg="white"
+                            border="1px dashed"
+                            borderColor="gray.300"
+                            minH="54px"
+                            borderRadius="xl"
+                            _hover={{ borderColor: 'gray.400', bg: 'gray.50' }}
+                        >
+                            <PlusIcon />
+                            Add another item
+                        </Button>
                     )}
 
-                    {!isValid && !error && disabledReason.toLowerCase().includes('stock') && (
-                        <FormMessage tone="error">
-                            {disabledReason}
-                        </FormMessage>
+                    {error && (
+                        <FormMessage tone="error">{error}</FormMessage>
                     )}
 
                     <HStack

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Box, Heading, Text, VStack, Button, HStack, Input } from '@chakra-ui/react'
+import { Box, Heading, Text, VStack, Button, HStack } from '@chakra-ui/react'
 import { getItems } from '../api/items'
 import { getSalesmen } from '../api/salesmen'
 import { getVariants } from '../api/variants'
@@ -114,7 +114,7 @@ function PurchasePage() {
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
                     <Box>
                         <Heading fontSize="24px" lineHeight="1.1" color="black">
-                            {showForm ? (editingPurchase ? 'Edit purchase' : 'Add purchase') : 'Purchases'}
+                            {showForm ? (editingPurchase ? 'Purchase details' : 'Add purchase') : 'Purchases'}
                         </Heading>
                     </Box>
                     <Button
@@ -132,7 +132,7 @@ function PurchasePage() {
                         onClick={handleAddNew}
                     >
                         {showForm ? <XIcon /> : <PlusIcon />}
-                        {showForm ? 'Cancel' : 'Add New'}
+                        {showForm ? 'Close' : 'Add New'}
                     </Button>
                 </Box>
 
@@ -182,11 +182,11 @@ function PurchasePage() {
 }
 
 function PurchaseCard({ purchase, onClick }) {
-    const quantity = Number(purchase.quantity)
-    const price = Number(purchase.price)
-    const total = Number.isFinite(quantity) && Number.isFinite(price)
-        ? quantity * price
-        : purchase.price
+    const items = purchase.items || []
+    const total = items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.price) || 0), 0)
+    const itemLabel = items.length === 1
+        ? `${items[0].item_name} · ${items[0].length}`
+        : `${items.length} items`
 
     return (
         <Box
@@ -201,8 +201,6 @@ function PurchaseCard({ purchase, onClick }) {
             borderRadius="xl"
             px={3}
             py={2.5}
-            cursor="pointer"
-            _hover={{ borderColor: 'gray.300' }}
         >
             <HStack justify="space-between" align="start" gap={3}>
                 <Box minW={0}>
@@ -215,10 +213,10 @@ function PurchaseCard({ purchase, onClick }) {
                         textOverflow="ellipsis"
                         whiteSpace="nowrap"
                     >
-                        {purchase.item_name}
+                        {itemLabel}
                     </Text>
                     <Text fontSize="12px" color="gray.500" lineHeight="1.3">
-                        {purchase.length}{purchase.party_name ? ` · ${purchase.party_name}` : ''}
+                        {purchase.party_name || 'No company'}
                     </Text>
                 </Box>
                 <Box textAlign="right" flexShrink={0}>
@@ -229,7 +227,7 @@ function PurchaseCard({ purchase, onClick }) {
             </HStack>
 
             <Text mt={1.5} fontSize="12px" color="gray.600" lineHeight="1.35">
-                {purchase.quantity} qty · {formatMoney(purchase.price)} · {formatDisplayDate(purchase.date)}
+                {formatMoney(total)} total · {formatDisplayDate(purchase.date)}
                 {purchase.salesman_name ? ` · ${purchase.salesman_name}` : ''}
             </Text>
         </Box>

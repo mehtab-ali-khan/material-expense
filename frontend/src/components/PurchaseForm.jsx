@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Box, Button, HStack, Input, Stack, Text, SimpleGrid, VStack } from '@chakra-ui/react'
 import { createPurchase, updatePurchase } from '../api/purchases'
 import SearchableDropdown from './SearchableDropdown'
-import { SaveIcon, XIcon } from './Icons'
+import { SaveIcon, XIcon, PlusIcon } from './Icons'
 import FormMessage from './FormMessage'
 
 const fieldInputStyles = {
@@ -18,47 +18,62 @@ const fieldInputStyles = {
     fontSize: '16px',
 }
 
-const emptyForm = {
-    itemName: '',
-    length: '',
-    partyName: '',
-    partyContact: '',
-    salesmanName: '',
-    quantity: '',
-    price: '',
-    date: new Date().toISOString().slice(0, 10),
-}
-
 function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase, onSaved, onCancel }) {
     const isEditing = !!editingPurchase
 
-    const [form, setForm] = useState(() =>
-        editingPurchase
-            ? {
-                itemName: editingPurchase.item_name || '',
-                length: editingPurchase.length || '',
-                partyName: editingPurchase.party_name || '',
-                partyContact: editingPurchase.party_contact || '',
-                salesmanName: editingPurchase.salesman_name || '',
-                quantity: String(editingPurchase.quantity ?? ''),
-                price: String(editingPurchase.price ?? ''),
-                date: editingPurchase.date || new Date().toISOString().slice(0, 10),
-            }
-            : emptyForm
-    )
+    // Header state
+    const [header, setHeader] = useState(() => ({
+        partyName: editingPurchase?.party_name || '',
+        partyContact: editingPurchase?.party_contact || '',
+        salesmanName: editingPurchase?.salesman_name || '',
+        date: editingPurchase?.date || new Date().toISOString().slice(0, 10),
+    }))
+
+    // Items state
+    const [rows, setRows] = useState(() => isEditing ? (editingPurchase.items || []).map((item, index) => ({
+        id: String(item.id || index + 1),
+        itemName: item.item_name || '',
+        length: item.length || '',
+        quantity: String(item.quantity ?? ''),
+        price: String(item.price ?? ''),
+    })) : [{
+        id: Date.now().toString(),
+        itemName: '',
+        length: '',
+        quantity: '',
+        price: '',
+    }])
+
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
     const [keyboardMode, setKeyboardMode] = useState(false)
-    const itemRef = useRef(null)
-    const lengthRef = useRef(null)
+
+    // Header refs
     const dateRef = useRef(null)
     const partyRef = useRef(null)
     const partyContactRef = useRef(null)
     const salesmanRef = useRef(null)
-    const quantityRef = useRef(null)
-    const priceRef = useRef(null)
+    const rowRefs = useRef({})
 
-    const updateField = (field, val) => setForm((f) => ({ ...f, [field]: val }))
+    const updateHeader = (field, val) => setHeader((h) => ({ ...h, [field]: val }))
+    const updateRow = (id, field, val) => {
+        setRows(rows.map(r => r.id === id ? { ...r, [field]: val } : r))
+    }
+    const addRow = () => {
+        setRows([...rows, { id: Date.now().toString(), itemName: '', length: '', quantity: '', price: '' }])
+    }
+    const removeRow = (id) => {
+        if (rows.length > 1) {
+            setRows(rows.filter(r => r.id !== id))
+        }
+    }
+    const setRowRef = (id, field) => (el) => {
+        rowRefs.current[id] = { ...rowRefs.current[id], [field]: el }
+    }
+    const focusRowField = (id, field) => {
+        rowRefs.current[id]?.[field]?.focus()
+    }
+
     const scrollFieldToTop = (ref) => {
         window.setTimeout(() => {
             ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -66,43 +81,35 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase
     }
     const handleFieldFocus = (ref) => {
         setKeyboardMode(true)
-        scrollFieldToTop(ref)
+        if (ref) scrollFieldToTop(ref)
     }
     const handleFieldBlur = () => {
         window.setTimeout(() => setKeyboardMode(false), 120)
     }
 
-    useEffect(() => {
-        if (!isEditing) {
-            itemRef.current?.focus()
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
-
-    const partyContactOptions = form.partyContact
-        ? [{ id: 'current', name: form.partyContact }]
-        : []
-
     const handlePartySelect = (opt) => {
-        updateField('partyName', opt.name)
-        updateField('partyContact', opt.contact || '')
+        updateHeader('partyName', opt.name)
+        updateHeader('partyContact', opt.contact || '')
     }
 
     const handlePartyCreate = (text) => {
-        updateField('partyName', text)
-        updateField('partyContact', '')
+        updateHeader('partyName', text)
+        updateHeader('partyContact', '')
     }
 
     const disabledReason = useMemo(() => {
-        if (!form.itemName.trim()) return 'Select item first'
-        if (!form.length.trim()) return 'Select length'
-        if (!form.quantity) return 'Enter quantity'
-        if (!form.price) return 'Enter price'
-        if (!form.partyName.trim()) return 'Select company'
-        if (!form.partyContact.trim()) return 'Enter company contact'
-        if (!form.date) return 'Select date'
+        if (!header.partyName.trim()) return 'Select company'
+        if (!header.partyContact.trim()) return 'Enter company contact'
+        if (!header.date) return 'Select date'
+        for (let i = 0; i < rows.length; i++) {
+            const r = rows[i]
+            if (!r.itemName.trim()) return `Select item for row ${i + 1}`
+            if (!r.length.trim()) return `Select length for row ${i + 1}`
+            if (!r.quantity) return `Enter quantity for row ${i + 1}`
+            if (!r.price) return `Enter price for row ${i + 1}`
+        }
         return ''
-    }, [form])
+    }, [header, rows])
 
     const isValid = !disabledReason
 
@@ -119,27 +126,30 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase
         try {
             if (isEditing) {
                 await updatePurchase(editingPurchase.id, {
-                    item_name: form.itemName,
-                    length: form.length,
-                    party_name: form.partyName,
-                    party_contact: form.partyContact,
-                    salesman_name: form.salesmanName || null,
-                    quantity: form.quantity,
-                    price: form.price,
-                    date: form.date,
+                    party_name: header.partyName,
+                    party_contact: header.partyContact,
+                    salesman_name: header.salesmanName || null,
+                    date: header.date,
+                    items: rows.map((row) => ({
+                        item_name: row.itemName,
+                        length: row.length,
+                        quantity: row.quantity,
+                        price: row.price,
+                    })),
                 })
             } else {
                 await createPurchase({
-                    item_name: form.itemName,
-                    length: form.length,
-                    party_name: form.partyName,
-                    party_contact: form.partyContact,
-                    salesman_name: form.salesmanName || null,
-                    quantity: form.quantity,
-                    price: form.price,
-                    date: form.date,
+                    party_name: header.partyName,
+                    party_contact: header.partyContact,
+                    salesman_name: header.salesmanName || null,
+                    date: header.date,
+                    items: rows.map(r => ({
+                        item_name: r.itemName,
+                        length: r.length,
+                        quantity: r.quantity,
+                        price: r.price,
+                    })),
                 })
-                setForm(emptyForm)
             }
             onSaved()
         } catch (err) {
@@ -147,9 +157,7 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase
             setError(
                 typeof detail === 'string'
                     ? detail
-                    : isEditing
-                        ? 'Could not save changes. Please check the values and try again.'
-                        : 'Could not save purchase. Please check the values and try again.'
+                    : 'Could not save purchase(s). Please check the values and try again.'
             )
         } finally {
             setLoading(false)
@@ -166,116 +174,24 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase
                         ? 'calc(132px + env(safe-area-inset-bottom))'
                         : 'calc(88px + env(safe-area-inset-bottom))'}
                 >
-                    <Field label="">
+                    <Field label="Date">
                         <Input
                             ref={dateRef}
                             type="date"
-                            value={form.date}
-                            onChange={(e) => updateField('date', e.target.value)}
+                            value={header.date}
+                            onChange={(e) => updateHeader('date', e.target.value)}
                             onFocus={() => handleFieldFocus(dateRef)}
                             onBlur={handleFieldBlur}
                             enterKeyHint="next"
                             {...fieldInputStyles}
                         />
                     </Field>
-
-                    <Field label="Item">
-                        <SearchableDropdown
-                            inputRef={itemRef}
-                            options={items}
-                            value={form.itemName}
-                            onChange={(val) => updateField('itemName', val)}
-                            onSelect={(opt) => updateField('itemName', opt.name)}
-                            onCreate={(text) => updateField('itemName', text)}
-                            onCommit={() => lengthRef.current?.focus()}
-                            onFocus={() => handleFieldFocus(itemRef)}
-                            onBlur={handleFieldBlur}
-                            enterKeyHint="next"
-                            placeholder="Type to search item"
-                        />
-                    </Field>
-
-                    <Field label="Length">
-                        <SearchableDropdown
-                            inputRef={lengthRef}
-                            options={lengthOptions}
-                            value={form.length}
-                            onChange={(val) => updateField('length', val)}
-                            onSelect={(opt) => updateField('length', opt.name)}
-                            onCreate={(text) => updateField('length', text)}
-                            onCommit={() => quantityRef.current?.focus()}
-                            onFocus={() => handleFieldFocus(lengthRef)}
-                            onBlur={handleFieldBlur}
-                            enterKeyHint="next"
-                            placeholder="Type to search length"
-                        />
-                    </Field>
-
-                    <SimpleGrid columns={1} gap={4}>
-                        <Field label="Qty">
-                            <Input
-                                ref={quantityRef}
-                                type="number"
-                                inputMode="numeric"
-                                value={form.quantity}
-                                onChange={(e) => updateField('quantity', e.target.value)}
-                                onFocus={() => handleFieldFocus(quantityRef)}
-                                onBlur={handleFieldBlur}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault()
-                                        priceRef.current?.focus()
-                                    }
-                                }}
-                                enterKeyHint="next"
-                                placeholder="0"
-                                {...fieldInputStyles}
-                            />
-                        </Field>
-                        <Field label="Price">
-                            <Input
-                                ref={priceRef}
-                                type="number"
-                                inputMode="decimal"
-                                value={form.price}
-                                onChange={(e) => updateField('price', e.target.value)}
-                                onFocus={() => handleFieldFocus(priceRef)}
-                                onBlur={handleFieldBlur}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault()
-                                        salesmanRef.current?.focus()
-                                    }
-                                }}
-                                enterKeyHint="next"
-                                placeholder="0"
-                                {...fieldInputStyles}
-                            />
-                        </Field>
-                    </SimpleGrid>
-
-                    <Field label="Salesman">
-                        <SearchableDropdown
-                            inputRef={salesmanRef}
-                            options={salesmen}
-                            value={form.salesmanName}
-                            onChange={(val) => updateField('salesmanName', val)}
-                            onSelect={(opt) => updateField('salesmanName', opt.name)}
-                            onCreate={(text) => updateField('salesmanName', text)}
-                            onCommit={() => partyRef.current?.focus()}
-                            onFocus={() => handleFieldFocus(salesmanRef)}
-                            onBlur={handleFieldBlur}
-                            enterKeyHint="next"
-                            placeholder="Optional"
-                        />
-                    </Field>
-
                     <Field label="Company">
                         <SearchableDropdown
                             inputRef={partyRef}
                             options={parties}
-                            value={form.partyName}
-                            onChange={(val) => updateField('partyName', val)}
+                            value={header.partyName}
+                            onChange={(val) => updateHeader('partyName', val)}
                             onSelect={handlePartySelect}
                             onCreate={handlePartyCreate}
                             onCommit={() => partyContactRef.current?.focus()}
@@ -285,24 +201,145 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase
                             placeholder="Type to search company"
                         />
                     </Field>
-
                     <Field label="Contact">
-                        <SearchableDropdown
-                            inputRef={partyContactRef}
-                            options={partyContactOptions}
-                            value={form.partyContact}
-                            onChange={(val) => updateField('partyContact', val.replace(/[^\d+]/g, ''))}
-                            onSelect={(opt) => updateField('partyContact', opt.name)}
-                            onCreate={(text) => updateField('partyContact', text)}
-                            onCommit={() => partyContactRef.current?.blur()}
+                        <Input
+                            ref={partyContactRef}
+                            type="tel"
+                            inputMode="tel"
+                            value={header.partyContact}
+                            onChange={(e) => updateHeader('partyContact', e.target.value.replace(/[^\d+]/g, ''))}
                             onFocus={() => handleFieldFocus(partyContactRef)}
                             onBlur={handleFieldBlur}
-                            enterKeyHint="done"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    salesmanRef.current?.focus()
+                                }
+                            }}
+                            enterKeyHint="next"
                             placeholder="Enter contact number"
-                            type="text"
-                            inputMode="numeric"
+                            {...fieldInputStyles}
                         />
                     </Field>
+                    <Field label="Salesman">
+                        <SearchableDropdown
+                            inputRef={salesmanRef}
+                            options={salesmen}
+                            value={header.salesmanName}
+                            onChange={(val) => updateHeader('salesmanName', val)}
+                            onSelect={(opt) => updateHeader('salesmanName', opt.name)}
+                            onCreate={(text) => updateHeader('salesmanName', text)}
+                            onFocus={() => handleFieldFocus(salesmanRef)}
+                            onBlur={handleFieldBlur}
+                            enterKeyHint="done"
+                            placeholder="Optional"
+                        />
+                    </Field>
+
+                    {rows.map((row, index) => (
+                        <Box key={row.id} bg="white" p={3} borderRadius="xl" borderWidth="1px" borderColor="gray.200">
+                            <VStack align="stretch" gap={3}>
+                                <HStack justify="space-between" align="center">
+                                    <Text fontWeight="semibold" fontSize="14px" color="gray.600">Item {index + 1}</Text>
+                                    {!isEditing && rows.length > 1 && (
+                                        <Button size="sm" variant="ghost" color="gray.500" _hover={{ bg: 'gray.50', color: 'black' }} onClick={() => removeRow(row.id)}>
+                                            Remove
+                                        </Button>
+                                    )}
+                                </HStack>
+                                <Field label="Item">
+                                    <SearchableDropdown
+                                        inputRef={setRowRef(row.id, 'item')}
+                                        options={items}
+                                        value={row.itemName}
+                                        onChange={(val) => updateRow(row.id, 'itemName', val)}
+                                        onSelect={(opt) => updateRow(row.id, 'itemName', opt.name)}
+                                        onCreate={(text) => updateRow(row.id, 'itemName', text)}
+                                        onCommit={() => focusRowField(row.id, 'length')}
+                                        onFocus={() => handleFieldFocus(rowRefs.current[row.id]?.item ? { current: rowRefs.current[row.id].item } : null)}
+                                        onBlur={handleFieldBlur}
+                                        enterKeyHint="next"
+                                        placeholder="Type to search item"
+                                    />
+                                </Field>
+                                <Field label="Length">
+                                    <SearchableDropdown
+                                        inputRef={setRowRef(row.id, 'length')}
+                                        options={lengthOptions}
+                                        value={row.length}
+                                        onChange={(val) => updateRow(row.id, 'length', val)}
+                                        onSelect={(opt) => updateRow(row.id, 'length', opt.name)}
+                                        onCreate={(text) => updateRow(row.id, 'length', text)}
+                                        onCommit={() => focusRowField(row.id, 'quantity')}
+                                        onFocus={() => handleFieldFocus(rowRefs.current[row.id]?.length ? { current: rowRefs.current[row.id].length } : null)}
+                                        onBlur={handleFieldBlur}
+                                        enterKeyHint="next"
+                                        placeholder="Type to search length"
+                                    />
+                                </Field>
+                                <SimpleGrid columns={2} gap={4}>
+                                    <Field label="Qty">
+                                        <Input
+                                            ref={setRowRef(row.id, 'quantity')}
+                                            type="number"
+                                            inputMode="numeric"
+                                            value={row.quantity}
+                                            onChange={(e) => updateRow(row.id, 'quantity', e.target.value)}
+                                            onFocus={() => handleFieldFocus(rowRefs.current[row.id]?.quantity ? { current: rowRefs.current[row.id].quantity } : null)}
+                                            onBlur={handleFieldBlur}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault()
+                                                    focusRowField(row.id, 'price')
+                                                }
+                                            }}
+                                            enterKeyHint="next"
+                                            placeholder="0"
+                                            {...fieldInputStyles}
+                                        />
+                                    </Field>
+                                    <Field label="Price">
+                                        <Input
+                                            ref={setRowRef(row.id, 'price')}
+                                            type="number"
+                                            inputMode="decimal"
+                                            value={row.price}
+                                            onChange={(e) => updateRow(row.id, 'price', e.target.value)}
+                                            onFocus={() => handleFieldFocus(rowRefs.current[row.id]?.price ? { current: rowRefs.current[row.id].price } : null)}
+                                            onBlur={handleFieldBlur}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault()
+                                                    rowRefs.current[row.id]?.price?.blur()
+                                                }
+                                            }}
+                                            enterKeyHint="done"
+                                            placeholder="0"
+                                            {...fieldInputStyles}
+                                        />
+                                    </Field>
+                                </SimpleGrid>
+                            </VStack>
+                        </Box>
+                    ))}
+
+                    {!isEditing && (
+                        <Button
+                            type="button"
+                            onClick={addRow}
+                            variant="outline"
+                            color="black"
+                            bg="white"
+                            border="1px dashed"
+                            borderColor="gray.300"
+                            minH="54px"
+                            borderRadius="xl"
+                            _hover={{ borderColor: 'gray.400', bg: 'gray.50' }}
+                        >
+                            <PlusIcon />
+                            Add another item
+                        </Button>
+                    )}
 
                     {error && (
                         <FormMessage tone="error">{error}</FormMessage>

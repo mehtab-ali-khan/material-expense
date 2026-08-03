@@ -14,7 +14,9 @@ from .models import (
     Salesman,
     ItemVariant,
     Purchase,
+    PurchaseItem,
     Sale,
+    SaleItem,
 )
 
 
@@ -87,7 +89,7 @@ class ItemVariantSerializer(serializers.ModelSerializer):
         ]
 
 
-class PurchaseSerializer(serializers.ModelSerializer):
+class LegacyPurchaseSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(write_only=True, required=False)
     length = serializers.CharField(write_only=True, required=False)
     salesman_name = serializers.CharField(
@@ -253,7 +255,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
         return instance
 
 
-class SaleSerializer(serializers.ModelSerializer):
+class LegacySaleSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(source="variant.item.name", read_only=True)
     length = serializers.CharField(source="variant.length", read_only=True)
     salesman_name = serializers.CharField(
@@ -409,6 +411,330 @@ class SaleSerializer(serializers.ModelSerializer):
             instance.save()
 
         return instance
+
+
+class PurchaseLineSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(required=False)
+    item_name = serializers.CharField(write_only=True, required=False)
+    length = serializers.CharField(write_only=True, required=False)
+
+    class Meta:
+        model = PurchaseItem
+        fields = ["id", "item_name", "length", "quantity", "price"]
+        read_only_fields = ["id"]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["item_name"] = instance.variant.item.name
+        data["length"] = instance.variant.length
+        return data
+
+
+class SaleLineSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(required=False)
+    item_name = serializers.CharField(source="variant.item.name", read_only=True)
+    length = serializers.CharField(source="variant.length", read_only=True)
+    purchase_price_snapshot = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    profit = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = SaleItem
+        fields = [
+            "id",
+            "variant",
+            "item_name",
+            "length",
+            "quantity",
+            "sale_price",
+            "purchase_price_snapshot",
+            "profit",
+        ]
+        read_only_fields = ["id", "purchase_price_snapshot", "profit"]
+
+
+class PurchaseSerializer(serializers.ModelSerializer):
+    items = PurchaseLineSerializer(many=True, allow_empty=False)
+    salesman_name = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, allow_null=True
+    )
+    party_name = serializers.CharField(write_only=True)
+    party_contact = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = Purchase
+        fields = [
+            "id", "items", "salesman_name", "party_name", "party_contact",
+            "date", "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
+
+    def _header(self, validated_data):
+        company = self.context["request"].user
+        salesman_name = (validated_data.pop("salesman_name", None) or "").strip()
+        salesman = None
+        if salesman_name:
+            salesman, _ = Salesman.objects.get_or_create(
+                company=company,
+                name__iexact=salesman_name,
+                defaults={"name": salesman_name},
+            )
+
+        party_name = validated_data.pop("party_name").strip()
+        party_contact = validated_data.pop("party_contact").strip()
+        party, created = Party.objects.get_or_create(
+            company=company,
+            name__iexact=party_name,
+            defaults={"name": party_name, "contact": party_contact},
+        )
+        if not created and party_contact and party_contact != party.contact:
+            party.contact = party_contact
+            party.save()
+        return company, party, salesman
+
+    def create(self, validated_data):
+        items = validated_data.pop("items")
+        company, party, salesman = self._header(validated_data)
+        with transaction.atomic():
+            purchase = Purchase.objects.create(
+                company=company,
+                party=party,
+                salesman=salesman,
+                date=validated_data["date"],
+            )
+            for item_data in items:
+                item_name = (item_data.get("item_name") or "").strip()
+                length = (item_data.get("length") or "").strip()
+                if not item_name or not length:
+                    raise DRFValidationError("Each item requires item_name and length.")
+                item, _ = Item.objects.get_or_create(
+                    company=company,
+                    name__iexact=item_name,
+                    defaults={"name": item_name},
+                )
+                variant, _ = ItemVariant.objects.get_or_create(
+                    item=item,
+                    length__iexact=length,
+                    defaults={"length": length},
+                )
+                PurchaseItem.objects.create(
+                    purchase=purchase,
+                    variant=variant,
+                    quantity=item_data["quantity"],
+                    price=item_data["price"],
+                )
+        return purchase
+
+    def update(self, instance, validated_data):
+        items = validated_data.pop("items")
+        company, party, salesman = self._header(validated_data)
+        with transaction.atomic():
+            for old_item in instance.items.select_related("variant"):
+                try:
+                    old_item.variant.remove_purchase_effect(
+                        old_item.quantity, old_item.price
+                    )
+                except DjangoValidationError as exc:
+                    raise DRFValidationError(exc.message)
+
+            instance.party = party
+            instance.salesman = salesman
+            instance.date = validated_data["date"]
+            instance.save(update_fields=["party", "salesman", "date"])
+            instance.items.all().delete()
+
+            for item_data in items:
+                item_name = (item_data.get("item_name") or "").strip()
+                length = (item_data.get("length") or "").strip()
+                if not item_name or not length:
+                    raise DRFValidationError("Each item requires item_name and length.")
+                item, _ = Item.objects.get_or_create(
+                    company=company,
+                    name__iexact=item_name,
+                    defaults={"name": item_name},
+                )
+                variant, _ = ItemVariant.objects.get_or_create(
+                    item=item,
+                    length__iexact=length,
+                    defaults={"length": length},
+                )
+                PurchaseItem.objects.create(
+                    purchase=instance,
+                    variant=variant,
+                    quantity=item_data["quantity"],
+                    price=item_data["price"],
+                )
+        return instance
+
+    def update(self, instance, validated_data):
+        items = validated_data.pop("items")
+        company, party, salesman = self._header(validated_data)
+        with transaction.atomic():
+            for old_item in instance.items.select_related("variant"):
+                try:
+                    old_item.variant.remove_purchase_effect(
+                        old_item.quantity, old_item.price
+                    )
+                except DjangoValidationError as exc:
+                    raise DRFValidationError(exc.message)
+
+            instance.party = party
+            instance.salesman = salesman
+            instance.date = validated_data["date"]
+            instance.save(update_fields=["party", "salesman", "date"])
+            instance.items.all().delete()
+
+            for item_data in items:
+                item_name = (item_data.get("item_name") or "").strip()
+                length = (item_data.get("length") or "").strip()
+                if not item_name or not length:
+                    raise DRFValidationError("Each item requires item_name and length.")
+                item, _ = Item.objects.get_or_create(
+                    company=company,
+                    name__iexact=item_name,
+                    defaults={"name": item_name},
+                )
+                variant, _ = ItemVariant.objects.get_or_create(
+                    item=item,
+                    length__iexact=length,
+                    defaults={"length": length},
+                )
+                PurchaseItem.objects.create(
+                    purchase=instance,
+                    variant=variant,
+                    quantity=item_data["quantity"],
+                    price=item_data["price"],
+                )
+        return instance
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["salesman_name"] = instance.salesman.name if instance.salesman else None
+        data["party_name"] = instance.party.name if instance.party else None
+        data["party_contact"] = instance.party.contact if instance.party else None
+        return data
+
+
+class SaleSerializer(serializers.ModelSerializer):
+    items = SaleLineSerializer(many=True, allow_empty=False)
+    salesman_name = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, allow_null=True
+    )
+    party_name = serializers.CharField(write_only=True)
+    party_contact = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = Sale
+        fields = [
+            "id", "items", "salesman_name", "party_name", "party_contact",
+            "date", "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
+
+    def create(self, validated_data):
+        company = self.context["request"].user
+        items = validated_data.pop("items")
+        salesman_name = (validated_data.pop("salesman_name", None) or "").strip()
+        salesman = None
+        if salesman_name:
+            salesman, _ = Salesman.objects.get_or_create(
+                company=company,
+                name__iexact=salesman_name,
+                defaults={"name": salesman_name},
+            )
+        party_name = validated_data.pop("party_name").strip()
+        party_contact = validated_data.pop("party_contact").strip()
+        party, created = Party.objects.get_or_create(
+            company=company,
+            name__iexact=party_name,
+            defaults={"name": party_name, "contact": party_contact},
+        )
+        if not created and party_contact and party_contact != party.contact:
+            party.contact = party_contact
+            party.save()
+
+        try:
+            with transaction.atomic():
+                sale = Sale.objects.create(
+                    company=company,
+                    party=party,
+                    salesman=salesman,
+                    date=validated_data["date"],
+                )
+                for item_data in items:
+                    variant = item_data["variant"]
+                    if variant.item.company_id != company.id:
+                        raise DRFValidationError("Invalid variant.")
+                    SaleItem.objects.create(
+                        sale=sale,
+                        variant=variant,
+                        quantity=item_data["quantity"],
+                        sale_price=item_data["sale_price"],
+                    )
+        except DjangoValidationError as exc:
+            raise DRFValidationError(exc.message)
+        return sale
+
+    def update(self, instance, validated_data):
+        company = self.context["request"].user
+        items = validated_data.pop("items")
+        salesman_name = (validated_data.pop("salesman_name", None) or "").strip()
+        salesman = None
+        if salesman_name:
+            salesman, _ = Salesman.objects.get_or_create(
+                company=company,
+                name__iexact=salesman_name,
+                defaults={"name": salesman_name},
+            )
+        party_name = validated_data.pop("party_name").strip()
+        party_contact = validated_data.pop("party_contact").strip()
+        party, created = Party.objects.get_or_create(
+            company=company,
+            name__iexact=party_name,
+            defaults={"name": party_name, "contact": party_contact},
+        )
+        if not created and party_contact and party_contact != party.contact:
+            party.contact = party_contact
+            party.save()
+
+        try:
+            with transaction.atomic():
+                for old_item in instance.items.select_related("variant"):
+                    old_item.variant.remove_sale_effect(old_item.quantity)
+
+                instance.party = party
+                instance.salesman = salesman
+                instance.date = validated_data["date"]
+                instance.save(update_fields=["party", "salesman", "date"])
+                instance.items.all().delete()
+
+                for item_data in items:
+                    variant = item_data["variant"]
+                    if variant.item.company_id != company.id:
+                        raise DRFValidationError("Invalid variant.")
+                    SaleItem.objects.create(
+                        sale=instance,
+                        variant=variant,
+                        quantity=item_data["quantity"],
+                        sale_price=item_data["sale_price"],
+                    )
+        except DjangoValidationError as exc:
+            raise DRFValidationError(exc.message)
+        return instance
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["salesman_name"] = instance.salesman.name if instance.salesman else None
+        data["party_name"] = instance.party.name if instance.party else None
+        data["party_contact"] = instance.party.contact if instance.party else None
+        items = list(instance.items.all())
+        data["total_quantity"] = sum((item.quantity for item in items), 0)
+        data["total_sales"] = sum(
+            (item.quantity * item.sale_price for item in items), 0
+        )
+        data["profit"] = sum((item.profit for item in items), 0)
+        return data
 
 
 class ContactMessageSerializer(serializers.ModelSerializer):

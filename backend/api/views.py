@@ -149,7 +149,7 @@ class PurchaseListCreateView(generics.ListCreateAPIView):
     serializer_class = PurchaseSerializer
 
     def get_queryset(self):
-        qs = Purchase.objects.filter(variant__item__company=self.request.user).order_by(
+        qs = Purchase.objects.filter(company=self.request.user).order_by(
             "-created_at"
         )
 
@@ -169,10 +169,10 @@ class PurchaseListCreateView(generics.ListCreateAPIView):
         if search:
             search = search.strip()
             qs = qs.filter(
-                Q(variant__item__name__icontains=search)
+                Q(items__variant__item__name__icontains=search)
                 | Q(party__name__icontains=search)
                 | Q(party__contact__icontains=search)
-            )
+            ).distinct()
 
         return qs
 
@@ -181,14 +181,14 @@ class PurchaseDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = PurchaseSerializer
 
     def get_queryset(self):
-        return Purchase.objects.filter(variant__item__company=self.request.user)
+        return Purchase.objects.filter(company=self.request.user)
 
 
 class SaleListCreateView(generics.ListCreateAPIView):
     serializer_class = SaleSerializer
 
     def get_queryset(self):
-        qs = Sale.objects.filter(variant__item__company=self.request.user).order_by(
+        qs = Sale.objects.filter(company=self.request.user).order_by(
             "-created_at"
         )
 
@@ -208,10 +208,10 @@ class SaleListCreateView(generics.ListCreateAPIView):
         if search:
             search = search.strip()
             qs = qs.filter(
-                Q(variant__item__name__icontains=search)
+                Q(items__variant__item__name__icontains=search)
                 | Q(party__name__icontains=search)
                 | Q(party__contact__icontains=search)
-            )
+            ).distinct()
 
         return qs
 
@@ -220,7 +220,7 @@ class SaleDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = SaleSerializer
 
     def get_queryset(self):
-        return Sale.objects.filter(variant__item__company=self.request.user)
+        return Sale.objects.filter(company=self.request.user)
 
 
 class ContactMessageCreateView(generics.CreateAPIView):

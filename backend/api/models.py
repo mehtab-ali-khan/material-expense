@@ -257,8 +257,8 @@ class ItemVariant(models.Model):
 
 
 class Purchase(models.Model):
-    variant = models.ForeignKey(
-        ItemVariant, on_delete=models.CASCADE, related_name="purchases"
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE, related_name="purchases"
     )
     salesman = models.ForeignKey(
         Salesman, on_delete=models.SET_NULL, null=True, related_name="purchases"
@@ -266,13 +266,22 @@ class Purchase(models.Model):
     party = models.ForeignKey(
         Party, on_delete=models.SET_NULL, null=True, related_name="purchases"
     )
-    quantity = models.DecimalField(max_digits=12, decimal_places=2)
-    price = models.DecimalField(max_digits=12, decimal_places=2)
     date = models.DateField(db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Purchase: {self.variant} x {self.quantity} @ {self.price}"
+        return f"Purchase #{self.id}"
+
+
+class PurchaseItem(models.Model):
+    purchase = models.ForeignKey(
+        Purchase, on_delete=models.CASCADE, related_name="items"
+    )
+    variant = models.ForeignKey(
+        ItemVariant, on_delete=models.CASCADE, related_name="purchases"
+    )
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    price = models.DecimalField(max_digits=12, decimal_places=2)
 
     @transaction.atomic
     def save(self, *args, **kwargs):
@@ -281,10 +290,13 @@ class Purchase(models.Model):
         if is_new:
             self.variant.record_purchase(self.quantity, self.price)
 
+    def __str__(self):
+        return f"Purchase item: {self.variant} x {self.quantity} @ {self.price}"
+
 
 class Sale(models.Model):
-    variant = models.ForeignKey(
-        ItemVariant, on_delete=models.CASCADE, related_name="sales"
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE, related_name="sales"
     )
     salesman = models.ForeignKey(
         Salesman, on_delete=models.SET_NULL, null=True, related_name="sales"
@@ -292,14 +304,21 @@ class Sale(models.Model):
     party = models.ForeignKey(
         Party, on_delete=models.SET_NULL, null=True, related_name="sales"
     )
-    quantity = models.DecimalField(max_digits=12, decimal_places=2)
-    sale_price = models.DecimalField(max_digits=12, decimal_places=2)
-    purchase_price_snapshot = models.DecimalField(max_digits=12, decimal_places=2)
     date = models.DateField(db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Sale: {self.variant} x {self.quantity} @ {self.sale_price}"
+        return f"Sale #{self.id}"
+
+
+class SaleItem(models.Model):
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name="items")
+    variant = models.ForeignKey(
+        ItemVariant, on_delete=models.CASCADE, related_name="sales"
+    )
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    sale_price = models.DecimalField(max_digits=12, decimal_places=2)
+    purchase_price_snapshot = models.DecimalField(max_digits=12, decimal_places=2)
 
     @property
     def profit(self):

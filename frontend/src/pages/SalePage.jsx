@@ -106,7 +106,7 @@ function SalePage() {
             >
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
                     <Heading fontSize="24px" lineHeight="1.1" color="black">
-                        {showForm ? (editingSale ? 'Edit sale' : 'Add sale') : 'Sales'}
+                        {showForm ? (editingSale ? 'Sale details' : 'Add sale') : 'Sales'}
                     </Heading>
                     <Button
                         display="inline-flex"
@@ -123,7 +123,7 @@ function SalePage() {
                         onClick={handleAddNew}
                     >
                         {showForm ? <XIcon /> : <PlusIcon />}
-                        {showForm ? 'Cancel' : 'Add New'}
+                        {showForm ? 'Close' : 'Add New'}
                     </Button>
                 </Box>
 
@@ -172,11 +172,11 @@ function SalePage() {
 }
 
 function SaleCard({ sale, onClick }) {
-    const quantity = Number(sale.quantity)
-    const price = Number(sale.sale_price)
-    const total = Number.isFinite(quantity) && Number.isFinite(price)
-        ? quantity * price
-        : sale.sale_price
+    const items = sale.items || []
+    const total = items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.sale_price) || 0), 0)
+    const itemLabel = items.length === 1
+        ? `${items[0].item_name} · ${items[0].length}`
+        : `${items.length} items`
 
     return (
         <Box
@@ -191,8 +191,6 @@ function SaleCard({ sale, onClick }) {
             borderRadius="xl"
             px={3}
             py={2.5}
-            cursor="pointer"
-            _hover={{ borderColor: 'gray.300' }}
         >
             <HStack justify="space-between" align="start" gap={3}>
                 <Box minW={0}>
@@ -205,10 +203,10 @@ function SaleCard({ sale, onClick }) {
                         textOverflow="ellipsis"
                         whiteSpace="nowrap"
                     >
-                        {sale.item_name}
+                        {itemLabel}
                     </Text>
                     <Text fontSize="12px" color="gray.500" lineHeight="1.3">
-                        {sale.length}{sale.party_name ? ` · ${sale.party_name}` : ''}
+                        {sale.party_name || 'No company'}
                     </Text>
                 </Box>
                 <Text color="black" fontSize="17px" fontWeight="bold" lineHeight="1.25" whiteSpace="nowrap" flexShrink={0}>
@@ -217,7 +215,7 @@ function SaleCard({ sale, onClick }) {
             </HStack>
 
             <Text mt={1.5} fontSize="12px" color="gray.600" lineHeight="1.35">
-                {sale.quantity} qty · {formatMoney(sale.sale_price)} · {formatDisplayDate(sale.date)}
+                {formatMoney(total)} total · {formatDisplayDate(sale.date)}
                 {sale.salesman_name ? ` · ${sale.salesman_name}` : ''}
             </Text>
         </Box>
