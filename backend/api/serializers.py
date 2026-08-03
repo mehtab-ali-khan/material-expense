@@ -9,6 +9,8 @@ from .models import (
     ContactMessage,
     Item,
     Party,
+    Quotation,
+    QuotationItem,
     Salesman,
     ItemVariant,
     Purchase,
@@ -414,3 +416,99 @@ class ContactMessageSerializer(serializers.ModelSerializer):
         model = ContactMessage
         fields = ["id", "message", "created_at"]
         read_only_fields = ["created_at"]
+
+
+class QuotationItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = QuotationItem
+        fields = ["id", "description", "qty", "price"]
+
+
+class QuotationSerializer(serializers.ModelSerializer):
+    items = QuotationItemSerializer(many=True)
+    party_name = serializers.CharField(write_only=True)
+    party_contact = serializers.CharField(write_only=True)
+    sub_total = serializers.DecimalField(
+        max_digits=14, decimal_places=2, read_only=True
+    )
+    vat_amount = serializers.DecimalField(
+        max_digits=14, decimal_places=2, read_only=True
+    )
+    grand_total = serializers.DecimalField(
+        max_digits=14, decimal_places=2, read_only=True
+    )
+
+    class Meta:
+        model = Quotation
+        fields = [
+            "id",
+            "party_name",
+            "party_contact",
+            "date",
+            "vat_percent",
+            "advance_percent",
+            "items",
+            "sub_total",
+            "vat_amount",
+            "grand_total",
+            "created_at",
+        ]
+        read_only_fields = ["created_at"]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["party_name"] = instance.party.name if instance.party else None
+        data["party_contact"] = instance.party.contact if instance.party else None
+        return data
+
+    def _resolve_party(self, company, party_name, party_contact):
+        party_name = party_name.strip()
+        party_contact = party_contact.strip()
+        party, created = Party.objects.get_or_create(
+            company=company,
+            name__iexact=party_name,
+            defaults={"name": party_name, "contact": party_contact},
+        )
+        if not created and party_contact and party_contact != party.contact:
+            party.contact = party_contact
+            party.save()
+        return party
+
+    def create(self, validated_data):
+        company = self.context["request"].user
+        items_data = validated_data.pop("items")
+        party = self._resolve_party(
+            company,
+            validated_data.pop("party_name"),
+            validated_data.pop("party_contact"),
+        )
+
+        quotation = Quotation.objects.create(
+            company=company, party=party, **validated_data
+        )
+        for item in items_data:
+            QuotationItem.objects.create(quotation=quotation, **item)
+        return quotation
+
+    def update(self, instance, validated_data):
+        company = self.context["request"].user
+        items_data = validated_data.pop("items", None)
+
+        if "party_name" in validated_data:
+            instance.party = self._resolve_party(
+                company,
+                validated_data.pop("party_name"),
+                validated_data.pop("party_contact", ""),
+            )
+
+        for attr in ["date", "vat_percent", "advance_percent"]:
+            if attr in validated_data:
+                setattr(instance, attr, validated_data[attr])
+        instance.save()
+
+        if items_data is not None:
+            instance.items.all().delete()
+            for item in items_data:
+                QuotationItem.objects.create(quotation=instance, **item)
+
+        return instance

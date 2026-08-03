@@ -9,6 +9,7 @@ from .models import (
     CompanyToken,
     Item,
     Party,
+    Quotation,
     Salesman,
     ItemVariant,
     Purchase,
@@ -23,6 +24,7 @@ from .serializers import (
     ContactMessageSerializer,
     ItemSerializer,
     PartySerializer,
+    QuotationSerializer,
     SalesmanSerializer,
     ItemVariantSerializer,
     PurchaseSerializer,
@@ -226,3 +228,41 @@ class ContactMessageCreateView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(company=self.request.user)
+
+
+class QuotationListCreateView(generics.ListCreateAPIView):
+    serializer_class = QuotationSerializer
+
+    def get_queryset(self):
+        qs = Quotation.objects.filter(company=self.request.user).order_by("-created_at")
+
+        date = self.request.query_params.get("date")
+        date_from = self.request.query_params.get("date_from")
+        date_to = self.request.query_params.get("date_to")
+        search = self.request.query_params.get("search")
+
+        if date:
+            qs = qs.filter(date=date)
+        else:
+            if date_from:
+                qs = qs.filter(date__gte=date_from)
+            if date_to:
+                qs = qs.filter(date__lte=date_to)
+
+        if search:
+            search = search.strip()
+            qs = qs.filter(
+                Q(party__name__icontains=search) | Q(party__contact__icontains=search)
+            )
+
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+
+class QuotationDetailView(generics.RetrieveUpdateAPIView):
+    serializer_class = QuotationSerializer
+
+    def get_queryset(self):
+        return Quotation.objects.filter(company=self.request.user)

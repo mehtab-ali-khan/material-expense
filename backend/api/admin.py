@@ -5,6 +5,8 @@ from .models import (
     ContactMessage,
     Item,
     Party,
+    Quotation,
+    QuotationItem,
     Salesman,
     ItemVariant,
     Purchase,
@@ -20,3 +22,5 @@ admin.site.register(Purchase)
 admin.site.register(Sale)
 admin.site.register(ContactMessage)
 admin.site.register(Party)
+admin.site.register(Quotation)
+admin.site.register(QuotationItem)

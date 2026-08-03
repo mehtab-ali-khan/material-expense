@@ -1,5 +1,6 @@
 import { Box, Button, HStack, Input, Stack, Text, VStack, IconButton, SimpleGrid } from '@chakra-ui/react'
 import { PlusIcon, XIcon } from './Icons'
+import SearchableDropdown from './SearchableDropdown'
 
 const fieldInputStyles = {
     bg: 'white',
@@ -14,12 +15,34 @@ const fieldInputStyles = {
     fontSize: '15px',
 }
 
-function QuotationForm({ date, setDate, items, setItems, vatPercent, setVatPercent, advancePercent, setAdvancePercent }) {
+function QuotationForm({
+    date, setDate,
+    items, setItems,
+    vatPercent, setVatPercent,
+    advancePercent, setAdvancePercent,
+    parties,
+    partyName, setPartyName,
+    partyContact, setPartyContact,
+}) {
     const updateItem = (idx, field, value) => {
         setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, [field]: value } : it)))
     }
     const addItem = () => setItems((prev) => [...prev, { description: '', qty: '', price: '' }])
     const removeItem = (idx) => setItems((prev) => prev.filter((_, i) => i !== idx))
+
+    const partyContactOptions = partyContact
+        ? [{ id: 'current', name: partyContact }]
+        : []
+
+    const handlePartySelect = (opt) => {
+        setPartyName(opt.name)
+        setPartyContact(opt.contact || '')
+    }
+
+    const handlePartyCreate = (text) => {
+        setPartyName(text)
+        setPartyContact('')
+    }
 
     return (
         <VStack align="stretch" gap={4}>
@@ -77,6 +100,30 @@ function QuotationForm({ date, setDate, items, setItems, vatPercent, setVatPerce
                     <Input type="number" inputMode="decimal" value={advancePercent} onChange={(e) => setAdvancePercent(e.target.value)} {...fieldInputStyles} />
                 </Field>
             </SimpleGrid>
+
+            <Field label="Company">
+                <SearchableDropdown
+                    options={parties}
+                    value={partyName}
+                    onChange={setPartyName}
+                    onSelect={handlePartySelect}
+                    onCreate={handlePartyCreate}
+                    placeholder="Type to search company"
+                />
+            </Field>
+
+            <Field label="Contact">
+                <SearchableDropdown
+                    options={partyContactOptions}
+                    value={partyContact}
+                    onChange={(val) => setPartyContact(val.replace(/[^\d+]/g, ''))}
+                    onSelect={(opt) => setPartyContact(opt.name)}
+                    onCreate={(text) => setPartyContact(text)}
+                    placeholder="Enter contact number"
+                    type="text"
+                    inputMode="numeric"
+                />
+            </Field>
         </VStack>
     )
 }

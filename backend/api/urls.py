@@ -3,6 +3,8 @@ from .views import (
     ContactMessageCreateView,
     MeView,
     PartyListCreateView,
+    QuotationDetailView,
+    QuotationListCreateView,
     SignupView,
     LoginView,
     ItemListCreateView,
@@ -27,4 +29,8 @@ urlpatterns = [
     path("sales/", SaleListCreateView.as_view(), name="sale-list"),
     path("sales/<int:pk>/", SaleDetailView.as_view(), name="sale-detail"),
     path("contact/", ContactMessageCreateView.as_view(), name="contact-create"),
+    path("quotations/", QuotationListCreateView.as_view(), name="quotation-list"),
+    path(
+        "quotations/<int:pk>/", QuotationDetailView.as_view(), name="quotation-detail"
+    ),
 ]

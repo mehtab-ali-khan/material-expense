@@ -323,3 +323,43 @@ class ContactMessage(models.Model):
 
     def __str__(self):
         return f"{self.company.name}: {self.message[:40]}"
+
+
+class Quotation(models.Model):
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE, related_name="quotations"
+    )
+    party = models.ForeignKey(
+        Party, on_delete=models.SET_NULL, null=True, related_name="quotations"
+    )
+    date = models.DateField(db_index=True)
+    vat_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    advance_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Quotation #{self.id} - {self.party.name if self.party else 'No party'}"
+
+    @property
+    def sub_total(self):
+        return sum((i.qty * i.price for i in self.items.all()), Decimal("0"))
+
+    @property
+    def vat_amount(self):
+        return self.sub_total * self.vat_percent / Decimal("100")
+
+    @property
+    def grand_total(self):
+        return self.sub_total + self.vat_amount
+
+
+class QuotationItem(models.Model):
+    quotation = models.ForeignKey(
+        Quotation, on_delete=models.CASCADE, related_name="items"
+    )
+    description = models.CharField(max_length=255)
+    qty = models.DecimalField(max_digits=12, decimal_places=2)
+    price = models.DecimalField(max_digits=12, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.description} x {self.qty}"
