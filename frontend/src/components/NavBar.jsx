@@ -34,11 +34,11 @@ const mainNavItems = [
 const sidebarExtraItems = [
     { to: '/profile', label: 'Profile', key: 'profile' },
     { to: '/contact', label: 'Contact us', key: 'contact' },
-    { to: '/quotation', label: 'Quotations', key: 'quotation' },
+    { to: '/quotation', label: 'Make Quotations', key: 'quotation' },
 ]
 
 const moreSheetItems = [
-    { to: '/quotation', label: 'Quotations', key: 'quotation' },
+    { to: '/quotation', label: 'Make Quotations', key: 'quotation' },
     { to: '/profile', label: 'Profile', key: 'profile' },
     { to: '/contact', label: 'Contact us', key: 'contact' },
 ]
