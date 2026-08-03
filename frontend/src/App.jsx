@@ -6,7 +6,7 @@ import PurchasePage from './pages/PurchasePage'
 import SalePage from './pages/SalePage'
 import StockPage from './pages/StockPage'
 import ProfitPage from './pages/ProfitPage'
-import AccountPage from './pages/AccountPage'
+import ProfilePage from './pages/ProfilePage'
 import ContactPage from './pages/ContactPage'
 import QuotationPage from './pages/QuotationPage'
 import PageLoader from './components/PageLoader'
@@ -31,7 +31,7 @@ function AppRoutes() {
       <Route path="/sale" element={<PrivateRoute><SalePage /></PrivateRoute>} />
       <Route path="/stock" element={<PrivateRoute><StockPage /></PrivateRoute>} />
       <Route path="/profit" element={<PrivateRoute><ProfitPage /></PrivateRoute>} />
-      <Route path="/account" element={<PrivateRoute><AccountPage /></PrivateRoute>} />
+      <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
       <Route path="/contact" element={<PrivateRoute><ContactPage /></PrivateRoute>} />
       <Route path="/quotation" element={<PrivateRoute><QuotationPage /></PrivateRoute>} />
       <Route path="*" element={<Navigate to="/login" />} />

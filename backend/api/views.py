@@ -17,6 +17,7 @@ from .models import (
 from .models import normalize_phone
 
 from .serializers import (
+    CompanyProfileSerializer,
     CompanySignupSerializer,
     CompanyLoginSerializer,
     ContactMessageSerializer,
@@ -32,6 +33,20 @@ from .serializers import (
 class MeView(APIView):
     def get(self, request):
         company = request.user
+        return Response(
+            {
+                "company_name": company.name,
+                "first_name": company.first_name,
+                "last_name": company.last_name,
+                "phone": company.phone,
+            }
+        )
+
+    def patch(self, request):
+        company = request.user
+        serializer = CompanyProfileSerializer(company, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
         return Response(
             {
                 "company_name": company.name,

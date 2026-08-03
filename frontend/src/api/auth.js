@@ -13,3 +13,5 @@ export const login = (phone, password) =>
   apiClient.post('/login/', { phone, password })
 
 export const getMe = () => apiClient.get('/me/')
+
+export const updateMe = (data) => apiClient.patch('/me/', data)

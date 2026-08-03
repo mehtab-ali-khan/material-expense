@@ -42,6 +42,16 @@ class CompanyLoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
 
+class CompanyProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Company
+        fields = ["name", "first_name", "last_name", "phone"]
+        extra_kwargs = {
+            "name": {"required": False},
+            "phone": {"required": False},
+        }
+
+
 class ItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = Item

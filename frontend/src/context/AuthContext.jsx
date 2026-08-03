@@ -39,6 +39,15 @@ export function AuthProvider({ children }) {
         })
     }
 
+    const updateProfile = (data) => {
+        setCompanyName(data.company_name)
+        setProfile({
+            firstName: data.first_name || '',
+            lastName: data.last_name || '',
+            phone: data.phone || '',
+        })
+    }
+
     const logout = () => {
         localStorage.removeItem('token')
         setCompanyName(null)
@@ -46,7 +55,7 @@ export function AuthProvider({ children }) {
     }
 
     return (
-        <AuthContext.Provider value={{ companyName, profile, isAuthenticated: !!companyName, loading, loginSuccess, logout }}>
+        <AuthContext.Provider value={{ companyName, profile, isAuthenticated: !!companyName, loading, loginSuccess, updateProfile, logout }}>
             {children}
         </AuthContext.Provider>
     )
