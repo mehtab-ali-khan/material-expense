@@ -36,7 +36,7 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             "/api/purchases/",
             make_purchase_payload(
                 item_name="Rod",
-                length="20ft",
+                size="20ft",
                 quantity="10",
                 price="100",
             ),
@@ -45,7 +45,7 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             "/api/purchases/",
             make_purchase_payload(
                 item_name="Rod",
-                length="20ft",
+                size="20ft",
                 quantity="10",
                 price="200",
             ),
@@ -65,7 +65,7 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             "/api/purchases/",
             make_purchase_payload(
                 item_name="Rod",
-                length="20ft",
+                size="20ft",
                 quantity="5",
                 price="10",
             ),
@@ -74,7 +74,7 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             "/api/purchases/",
             make_purchase_payload(
                 item_name="Rod",
-                length="20ft",
+                size="20ft",
                 quantity="5",
                 price="999",
             ),
@@ -88,7 +88,7 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             "/api/purchases/",
             make_purchase_payload(
                 item_name="Rod",
-                length="20ft",
+                size="20ft",
                 quantity="5",
                 price="10",
             ),
@@ -97,7 +97,7 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             "/api/purchases/",
             make_purchase_payload(
                 item_name="Rod",
-                length="25ft",
+                size="25ft",
                 quantity="5",
                 price="10",
             ),
@@ -106,13 +106,13 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             "/api/purchases/",
             make_purchase_payload(
                 item_name="Rod",
-                length="20ft",
+                size="20ft",
                 quantity="5",
                 price="10",
             ),
         )
         # measurement no longer part of variant identity (0009 migration
-        # dropped it), so length is the only differentiator now.
+        # dropped it), so size is the only differentiator now.
         assert ItemVariant.objects.filter(item__name="Rod").count() == 2
 
     def test_name_normalization_is_case_insensitive_and_trimmed(
@@ -122,7 +122,7 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             "/api/purchases/",
             make_purchase_payload(
                 item_name="  Steel Rod  ",
-                length=" 20ft ",
+                size=" 20ft ",
                 quantity="5",
                 price="10",
             ),
@@ -131,7 +131,7 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             "/api/purchases/",
             make_purchase_payload(
                 item_name="steel rod",
-                length="20FT",
+                size="20FT",
                 quantity="5",
                 price="10",
             ),
@@ -222,7 +222,7 @@ class TestProfitCalculation:
         )
         assert res.status_code == 201
         sale = Sale.objects.get(id=res.data["id"])
-        assert sale.purchase_price_snapshot == Decimal("100")
+        assert sale.cost_price_at_sale == Decimal("100")
         assert sale.profit == Decimal("150")
 
     def test_profit_snapshot_is_stable_after_later_purchase_changes_average(
@@ -237,7 +237,7 @@ class TestProfitCalculation:
             "/api/sales/", make_sale_payload(variant.id, quantity="2", sale_price="120")
         )
         sale1 = Sale.objects.get(id=res1.data["id"])
-        assert sale1.purchase_price_snapshot == Decimal("100")
+        assert sale1.cost_price_at_sale == Decimal("100")
         assert sale1.profit == Decimal("40")
 
         client_a.post(
@@ -246,7 +246,7 @@ class TestProfitCalculation:
         )
 
         sale1.refresh_from_db()
-        assert sale1.purchase_price_snapshot == Decimal("100")
+        assert sale1.cost_price_at_sale == Decimal("100")
         assert sale1.profit == Decimal("40")
 
         variant.refresh_from_db()
@@ -267,7 +267,7 @@ class TestProfitCalculation:
             ),
         )
         sale1 = Sale.objects.get(id=res1.data["id"])
-        assert sale1.purchase_price_snapshot == Decimal("100")
+        assert sale1.cost_price_at_sale == Decimal("100")
 
         client_a.post(
             "/api/purchases/", make_purchase_payload(quantity="10", price="300")
@@ -282,8 +282,8 @@ class TestProfitCalculation:
             ),
         )
         sale2 = Sale.objects.get(id=res2.data["id"])
-        assert sale2.purchase_price_snapshot == new_avg
-        assert sale2.purchase_price_snapshot != sale1.purchase_price_snapshot
+        assert sale2.cost_price_at_sale == new_avg
+        assert sale2.cost_price_at_sale != sale1.cost_price_at_sale
 
     def test_grand_total_profit_sums_all_sales(
         self, client_a, make_purchase_payload, make_sale_payload

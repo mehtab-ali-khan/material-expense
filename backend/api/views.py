@@ -142,7 +142,7 @@ class ItemVariantListView(generics.ListAPIView):
         qs = ItemVariant.objects.filter(item__company=self.request.user)
         if item_id:
             qs = qs.filter(item_id=item_id)
-        return qs.order_by("length")
+        return qs.order_by("size")
 
 
 class PurchaseListCreateView(generics.ListCreateAPIView):

@@ -15,7 +15,7 @@ pytestmark = pytest.mark.django_db
 def purchase_payload(**overrides):
     payload = {
         "item_name": "Steel Rod",
-        "length": "20ft",
+        "size": "20ft",
         "quantity": "10",
         "price": "100",
         "date": "2026-01-01",
@@ -143,7 +143,7 @@ class TestDecimalPrecision:
         sale.refresh_from_db()
 
         expected_profit = (Decimal("15.33") - avg) * Decimal("1")
-        assert sale.purchase_price_snapshot == avg
+        assert sale.cost_price_at_sale == avg
         assert sale.profit == expected_profit
         assert sale.profit == sale.profit.quantize(Decimal("0.01"))
 

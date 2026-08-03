@@ -83,350 +83,25 @@ class ItemVariantSerializer(serializers.ModelSerializer):
             "id",
             "item",
             "item_name",
-            "length",
+            "size",
             "current_stock_qty",
             "avg_purchase_price",
         ]
 
 
-class LegacyPurchaseSerializer(serializers.ModelSerializer):
-    item_name = serializers.CharField(write_only=True, required=False)
-    length = serializers.CharField(write_only=True, required=False)
-    salesman_name = serializers.CharField(
-        write_only=True, required=False, allow_blank=True, allow_null=True
-    )
-    party_name = serializers.CharField(write_only=True)
-    party_contact = serializers.CharField(write_only=True)
-
-    class Meta:
-        model = Purchase
-        fields = [
-            "id",
-            "item_name",
-            "length",
-            "salesman_name",
-            "party_name",
-            "party_contact",
-            "quantity",
-            "price",
-            "date",
-            "created_at",
-        ]
-        read_only_fields = ["created_at"]
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        data["item_name"] = instance.variant.item.name
-        data["length"] = instance.variant.length
-        data["salesman_name"] = instance.salesman.name if instance.salesman else None
-        data["party_name"] = instance.party.name if instance.party else None
-        data["party_contact"] = instance.party.contact if instance.party else None
-        return data
-
-    def create(self, validated_data):
-        company = self.context["request"].user
-
-        if not validated_data.get("item_name") or not validated_data.get("length"):
-            raise DRFValidationError("item_name and length are required.")
-
-        item, _ = Item.objects.get_or_create(
-            company=company,
-            name__iexact=validated_data["item_name"].strip(),
-            defaults={"name": validated_data["item_name"].strip()},
-        )
-        variant, _ = ItemVariant.objects.get_or_create(
-            item=item,
-            length__iexact=validated_data["length"].strip(),
-            defaults={"length": validated_data["length"].strip()},
-        )
-        salesman_name = (validated_data.get("salesman_name") or "").strip()
-        salesman = None
-        if salesman_name:
-            salesman, _ = Salesman.objects.get_or_create(
-                company=company,
-                name__iexact=salesman_name,
-                defaults={"name": salesman_name},
-            )
-        party_name = validated_data["party_name"].strip()
-        party_contact = validated_data["party_contact"].strip()
-
-        party, created = Party.objects.get_or_create(
-            company=company,
-            name__iexact=party_name,
-            defaults={"name": party_name, "contact": party_contact},
-        )
-        if not created and party_contact and party_contact != party.contact:
-            party.contact = party_contact
-            party.save()
-
-        return Purchase.objects.create(
-            variant=variant,
-            salesman=salesman,
-            party=party,
-            quantity=validated_data["quantity"],
-            price=validated_data["price"],
-            date=validated_data["date"],
-        )
-
-    def update(self, instance, validated_data):
-        company = self.context["request"].user
-        old_variant = instance.variant
-
-        salesman = instance.salesman
-        if "salesman_name" in validated_data:
-            salesman_name = (validated_data.get("salesman_name") or "").strip()
-            salesman = None
-            if salesman_name:
-                salesman, _ = Salesman.objects.get_or_create(
-                    company=company,
-                    name__iexact=salesman_name,
-                    defaults={"name": salesman_name},
-                )
-
-        party = instance.party
-        if "party_name" in validated_data:
-            party_name = validated_data["party_name"].strip()
-            party_contact = validated_data.get("party_contact", "").strip()
-            party, created = Party.objects.get_or_create(
-                company=company,
-                name__iexact=party_name,
-                defaults={"name": party_name, "contact": party_contact},
-            )
-            if not created and party_contact and party_contact != party.contact:
-                party.contact = party_contact
-                party.save()
-
-        new_quantity = validated_data.get("quantity", instance.quantity)
-        new_price = validated_data.get("price", instance.price)
-
-        new_item_name = validated_data.get("item_name")
-        new_length = validated_data.get("length")
-        variant_changed = bool(
-            (
-                new_item_name
-                and new_item_name.strip().lower() != old_variant.item.name.lower()
-            )
-            or (new_length and new_length.strip().lower() != old_variant.length.lower())
-        )
-
-        with transaction.atomic():
-            if variant_changed:
-                item, _ = Item.objects.get_or_create(
-                    company=company,
-                    name__iexact=(new_item_name or old_variant.item.name).strip(),
-                    defaults={"name": (new_item_name or old_variant.item.name).strip()},
-                )
-                new_variant, _ = ItemVariant.objects.get_or_create(
-                    item=item,
-                    length__iexact=(new_length or old_variant.length).strip(),
-                    defaults={"length": (new_length or old_variant.length).strip()},
-                )
-
-                try:
-                    old_variant.remove_purchase_effect(
-                        instance.quantity, instance.price
-                    )
-                except DjangoValidationError as e:
-                    raise DRFValidationError(e.message)
-
-                new_variant.record_purchase(new_quantity, new_price)
-
-                if old_variant.is_orphaned(exclude_purchase_id=instance.pk):
-                    item = old_variant.item
-                    old_variant.delete()
-                    if not item.variants.exists():
-                        item.delete()
-                instance.variant = new_variant
-            else:
-                try:
-                    old_variant.adjust_purchase(
-                        instance.quantity, instance.price, new_quantity, new_price
-                    )
-                except DjangoValidationError as e:
-                    raise DRFValidationError(e.message)
-
-            instance.quantity = new_quantity
-            instance.price = new_price
-            instance.date = validated_data.get("date", instance.date)
-            instance.salesman = salesman
-            instance.party = party
-            instance.save()
-
-        return instance
-
-
-class LegacySaleSerializer(serializers.ModelSerializer):
-    item_name = serializers.CharField(source="variant.item.name", read_only=True)
-    length = serializers.CharField(source="variant.length", read_only=True)
-    salesman_name = serializers.CharField(
-        write_only=True, required=False, allow_blank=True, allow_null=True
-    )
-    party_name = serializers.CharField(write_only=True)
-    party_contact = serializers.CharField(write_only=True)
-    profit = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
-
-    class Meta:
-        model = Sale
-        fields = [
-            "id",
-            "variant",
-            "item_name",
-            "length",
-            "salesman_name",
-            "party_name",
-            "party_contact",
-            "quantity",
-            "sale_price",
-            "purchase_price_snapshot",
-            "profit",
-            "date",
-            "created_at",
-        ]
-        read_only_fields = ["purchase_price_snapshot", "created_at"]
-        extra_kwargs = {
-            "variant": {"required": False},
-        }
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        data["salesman_name"] = instance.salesman.name if instance.salesman else None
-        data["party_name"] = instance.party.name if instance.party else None
-        data["party_contact"] = instance.party.contact if instance.party else None
-        data["item_id"] = instance.variant.item_id
-        return data
-
-    def create(self, validated_data):
-        company = self.context["request"].user
-        variant = validated_data.get("variant")
-        if not variant:
-            raise DRFValidationError("variant is required.")
-
-        if variant.item.company_id != company.id:
-            raise DRFValidationError("Invalid variant.")
-
-        salesman_name = (validated_data.get("salesman_name") or "").strip()
-        salesman = None
-        if salesman_name:
-            salesman, _ = Salesman.objects.get_or_create(
-                company=company,
-                name__iexact=salesman_name,
-                defaults={"name": salesman_name},
-            )
-        party_name = validated_data["party_name"].strip()
-        party_contact = validated_data["party_contact"].strip()
-
-        party, created = Party.objects.get_or_create(
-            company=company,
-            name__iexact=party_name,
-            defaults={"name": party_name, "contact": party_contact},
-        )
-        if not created and party_contact and party_contact != party.contact:
-            party.contact = party_contact
-            party.save()
-
-        sale = Sale(
-            variant=variant,
-            salesman=salesman,
-            party=party,
-            quantity=validated_data["quantity"],
-            sale_price=validated_data["sale_price"],
-            date=validated_data["date"],
-        )
-
-        try:
-            sale.save()
-        except DjangoValidationError as e:
-            raise DRFValidationError(e.message)
-
-        return sale
-
-    def update(self, instance, validated_data):
-        company = self.context["request"].user
-        old_variant = instance.variant
-
-        salesman = instance.salesman
-        if "salesman_name" in validated_data:
-            salesman_name = (validated_data.get("salesman_name") or "").strip()
-            salesman = None
-            if salesman_name:
-                salesman, _ = Salesman.objects.get_or_create(
-                    company=company,
-                    name__iexact=salesman_name,
-                    defaults={"name": salesman_name},
-                )
-
-        party = instance.party
-        if "party_name" in validated_data:
-            party_name = validated_data["party_name"].strip()
-            party_contact = validated_data.get("party_contact", "").strip()
-            party, created = Party.objects.get_or_create(
-                company=company,
-                name__iexact=party_name,
-                defaults={"name": party_name, "contact": party_contact},
-            )
-            if not created and party_contact and party_contact != party.contact:
-                party.contact = party_contact
-                party.save()
-
-        new_quantity = validated_data.get("quantity", instance.quantity)
-        new_sale_price = validated_data.get("sale_price", instance.sale_price)
-
-        new_variant = validated_data.get("variant")
-        variant_changed = bool(new_variant and new_variant.id != old_variant.id)
-
-        with transaction.atomic():
-            if variant_changed:
-                if new_variant.item.company_id != company.id:
-                    raise DRFValidationError("Invalid variant.")
-
-                old_variant.remove_sale_effect(instance.quantity)
-
-                try:
-                    new_variant.record_sale(new_quantity)
-                except DjangoValidationError as e:
-                    raise DRFValidationError(e.message)
-
-                if old_variant.is_orphaned(exclude_sale_id=instance.pk):
-                    item = old_variant.item
-                    old_variant.delete()
-                    if not item.variants.exists():
-                        item.delete()
-                instance.variant = new_variant
-
-                # variant changed -> old snapshot no longer meaningful,
-                # re-snapshot against the new variant's current avg price
-                instance.purchase_price_snapshot = new_variant.avg_purchase_price
-            else:
-                try:
-                    old_variant.adjust_sale(instance.quantity, new_quantity)
-                except DjangoValidationError as e:
-                    raise DRFValidationError(e.message)
-                # purchase_price_snapshot intentionally untouched — preserved
-
-            instance.quantity = new_quantity
-            instance.sale_price = new_sale_price
-            instance.date = validated_data.get("date", instance.date)
-            instance.salesman = salesman
-            instance.party = party
-            instance.save()
-
-        return instance
-
-
 class PurchaseLineSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(required=False)
     item_name = serializers.CharField(write_only=True, required=False)
-    length = serializers.CharField(write_only=True, required=False)
+    size = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = PurchaseItem
-        fields = ["id", "item_name", "length", "quantity", "price"]
-        read_only_fields = ["id"]
+        fields = ["id", "item_name", "size", "quantity", "price"]
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data["item_name"] = instance.variant.item.name
-        data["length"] = instance.variant.length
+        data["size"] = instance.variant.size
         return data
 
 
@@ -434,8 +109,14 @@ class SaleLineSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(required=False)
     item_id = serializers.IntegerField(source="variant.item_id", read_only=True)
     item_name = serializers.CharField(source="variant.item.name", read_only=True)
-    length = serializers.CharField(source="variant.length", read_only=True)
-    purchase_price_snapshot = serializers.DecimalField(
+    size = serializers.CharField(source="variant.size", read_only=True)
+    current_stock_qty = serializers.DecimalField(
+        source="variant.current_stock_qty",
+        max_digits=12,
+        decimal_places=2,
+        read_only=True,
+    )
+    cost_price_at_sale = serializers.DecimalField(
         max_digits=12, decimal_places=2, read_only=True
     )
     profit = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
@@ -447,13 +128,14 @@ class SaleLineSerializer(serializers.ModelSerializer):
             "item_id",
             "variant",
             "item_name",
-            "length",
+            "size",
+            "current_stock_qty",
             "quantity",
             "sale_price",
-            "purchase_price_snapshot",
+            "cost_price_at_sale",
             "profit",
         ]
-        read_only_fields = ["id", "purchase_price_snapshot", "profit"]
+        read_only_fields = ["cost_price_at_sale", "profit"]
 
 
 class PurchaseSerializer(serializers.ModelSerializer):
@@ -507,9 +189,9 @@ class PurchaseSerializer(serializers.ModelSerializer):
             )
             for item_data in items:
                 item_name = (item_data.get("item_name") or "").strip()
-                length = (item_data.get("length") or "").strip()
-                if not item_name or not length:
-                    raise DRFValidationError("Each item requires item_name and length.")
+                size = (item_data.get("size") or "").strip()
+                if not item_name or not size:
+                    raise DRFValidationError("Each item requires item_name and size.")
                 item, _ = Item.objects.get_or_create(
                     company=company,
                     name__iexact=item_name,
@@ -517,8 +199,8 @@ class PurchaseSerializer(serializers.ModelSerializer):
                 )
                 variant, _ = ItemVariant.objects.get_or_create(
                     item=item,
-                    length__iexact=length,
-                    defaults={"length": length},
+                    size__iexact=size,
+                    defaults={"size": size},
                 )
                 PurchaseItem.objects.create(
                     purchase=purchase,
@@ -532,25 +214,22 @@ class PurchaseSerializer(serializers.ModelSerializer):
         items = validated_data.pop("items")
         company, party, salesman = self._header(validated_data)
         with transaction.atomic():
-            for old_item in instance.items.select_related("variant"):
-                try:
-                    old_item.variant.remove_purchase_effect(
-                        old_item.quantity, old_item.price
-                    )
-                except DjangoValidationError as exc:
-                    raise DRFValidationError(exc.message)
-
             instance.party = party
             instance.salesman = salesman
             instance.date = validated_data["date"]
             instance.save(update_fields=["party", "salesman", "date"])
-            instance.items.all().delete()
+
+            existing_items = {
+                item.id: item
+                for item in instance.items.select_related("variant", "variant__item")
+            }
+            submitted_ids = set()
 
             for item_data in items:
                 item_name = (item_data.get("item_name") or "").strip()
-                length = (item_data.get("length") or "").strip()
-                if not item_name or not length:
-                    raise DRFValidationError("Each item requires item_name and length.")
+                size = (item_data.get("size") or "").strip()
+                if not item_name or not size:
+                    raise DRFValidationError("Each item requires item_name and size.")
                 item, _ = Item.objects.get_or_create(
                     company=company,
                     name__iexact=item_name,
@@ -558,15 +237,53 @@ class PurchaseSerializer(serializers.ModelSerializer):
                 )
                 variant, _ = ItemVariant.objects.get_or_create(
                     item=item,
-                    length__iexact=length,
-                    defaults={"length": length},
+                    size__iexact=size,
+                    defaults={"size": size},
                 )
-                PurchaseItem.objects.create(
-                    purchase=instance,
-                    variant=variant,
-                    quantity=item_data["quantity"],
-                    price=item_data["price"],
-                )
+
+                item_id = item_data.get("id")
+                old_item = existing_items.get(item_id) if item_id else None
+                if old_item:
+                    submitted_ids.add(old_item.id)
+                    try:
+                        if old_item.variant_id == variant.id:
+                            old_item.variant.adjust_purchase(
+                                old_item.quantity,
+                                old_item.price,
+                                item_data["quantity"],
+                                item_data["price"],
+                            )
+                        else:
+                            old_item.variant.remove_purchase_effect(
+                                old_item.quantity, old_item.price
+                            )
+                            variant.record_purchase(
+                                item_data["quantity"], item_data["price"]
+                            )
+                    except DjangoValidationError as exc:
+                        raise DRFValidationError(exc.message)
+
+                    old_item.variant = variant
+                    old_item.quantity = item_data["quantity"]
+                    old_item.price = item_data["price"]
+                    old_item.save(update_fields=["variant", "quantity", "price"])
+                else:
+                    PurchaseItem.objects.create(
+                        purchase=instance,
+                        variant=variant,
+                        quantity=item_data["quantity"],
+                        price=item_data["price"],
+                    )
+
+            for old_item in existing_items.values():
+                if old_item.id not in submitted_ids:
+                    try:
+                        old_item.variant.remove_purchase_effect(
+                            old_item.quantity, old_item.price
+                        )
+                    except DjangoValidationError as exc:
+                        raise DRFValidationError(exc.message)
+                    old_item.delete()
         return instance
 
     def to_representation(self, instance):
@@ -661,25 +378,50 @@ class SaleSerializer(serializers.ModelSerializer):
 
         try:
             with transaction.atomic():
-                for old_item in instance.items.select_related("variant"):
+                existing_items = {
+                    item.id: item
+                    for item in instance.items.select_related("variant")
+                }
+
+                # Temporarily restore all stock consumed by the existing sale.
+                # Existing snapshots are retained and are never recalculated.
+                for old_item in existing_items.values():
                     old_item.variant.remove_sale_effect(old_item.quantity)
 
                 instance.party = party
                 instance.salesman = salesman
                 instance.date = validated_data["date"]
                 instance.save(update_fields=["party", "salesman", "date"])
-                instance.items.all().delete()
-
+                submitted_ids = set()
                 for item_data in items:
                     variant = item_data["variant"]
                     if variant.item.company_id != company.id:
                         raise DRFValidationError("Invalid variant.")
-                    SaleItem.objects.create(
-                        sale=instance,
-                        variant=variant,
-                        quantity=item_data["quantity"],
-                        sale_price=item_data["sale_price"],
-                    )
+
+                    item_id = item_data.get("id")
+                    old_item = existing_items.get(item_id) if item_id else None
+                    if old_item:
+                        submitted_ids.add(old_item.id)
+                        if old_item.variant_id != variant.id:
+                            raise DRFValidationError(
+                                "A sale item's item/size cannot be changed after creation."
+                            )
+                        old_item.quantity = item_data["quantity"]
+                        old_item.sale_price = item_data["sale_price"]
+                        old_item.variant.record_sale(old_item.quantity)
+                        old_item.save(update_fields=["quantity", "sale_price"])
+                    else:
+                        SaleItem.objects.create(
+                            sale=instance,
+                            variant=variant,
+                            quantity=item_data["quantity"],
+                            sale_price=item_data["sale_price"],
+                        )
+
+                # Lines removed from the edited sale are no longer part of it.
+                for old_item in existing_items.values():
+                    if old_item.id not in submitted_ids:
+                        old_item.delete()
         except DjangoValidationError as exc:
             raise DRFValidationError(exc.message)
         return instance

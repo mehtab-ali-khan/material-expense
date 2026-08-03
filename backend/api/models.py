@@ -2,6 +2,7 @@ from decimal import Decimal
 import secrets
 
 from django.db import models
+from django.db.models import F, Sum
 from django.db.models.functions import Lower
 from django.db import transaction
 from django.contrib.auth.hashers import make_password, check_password
@@ -138,7 +139,7 @@ class Salesman(models.Model):
 
 class ItemVariant(models.Model):
     item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name="variants")
-    length = models.CharField(max_length=100)
+    size = models.CharField(max_length=100)
 
     current_stock_qty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     avg_purchase_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -150,17 +151,29 @@ class ItemVariant(models.Model):
     )
 
     class Meta:
-        unique_together = ("item", "length")
+        unique_together = ("item", "size")
         constraints = [
-            models.UniqueConstraint(Lower("length"), "item", name="variant_item_length_ci_unique")
+            models.UniqueConstraint(Lower("size"), "item", name="variant_item_size_ci_unique")
         ]
 
     def save(self, *args, **kwargs):
-        self.length = self.length.strip()
+        self.size = self.size.strip()
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.item.name} ({self.length})"
+        return f"{self.item.name} ({self.size})"
+
+    def _recalculate_current_average_cost(self):
+        """Value only the stock that remains after frozen sale costs."""
+        historical_cogs = self.sales.aggregate(
+            total=Sum(F("cost_price_at_sale") * F("quantity"))
+        )["total"] or Decimal("0")
+        remaining_value = self.total_purchased_value - historical_cogs
+        self.avg_purchase_price = (
+            remaining_value / self.current_stock_qty
+            if self.current_stock_qty > 0
+            else Decimal("0")
+        )
 
     def record_purchase(self, quantity, price):
         """
@@ -169,8 +182,8 @@ class ItemVariant(models.Model):
         """
         self.total_purchased_qty += quantity
         self.total_purchased_value += quantity * price
-        self.avg_purchase_price = self.total_purchased_value / self.total_purchased_qty
         self.current_stock_qty += quantity
+        self._recalculate_current_average_cost()
         self.save()
 
     def record_sale(self, quantity):
@@ -206,10 +219,8 @@ class ItemVariant(models.Model):
 
         self.total_purchased_qty = new_total_qty
         self.total_purchased_value = new_total_value
-        self.avg_purchase_price = (
-            new_total_value / new_total_qty if new_total_qty > 0 else Decimal("0")
-        )
         self.current_stock_qty = new_stock
+        self._recalculate_current_average_cost()
         self.save()
 
     def adjust_sale(self, old_quantity, new_quantity):
@@ -227,7 +238,7 @@ class ItemVariant(models.Model):
     def remove_purchase_effect(self, quantity, price):
         """
         Undo the stock/avg-price effect of one purchase. Used when a
-        purchase's item/length changes on edit (moving off this variant),
+        purchase's item/size changes on edit (moving off this variant),
         and will be reused by a future delete-purchase feature.
         """
         new_quantity = self.current_stock_qty - quantity
@@ -238,17 +249,13 @@ class ItemVariant(models.Model):
             )
         self.total_purchased_qty -= quantity
         self.total_purchased_value -= quantity * price
-        self.avg_purchase_price = (
-            self.total_purchased_value / self.total_purchased_qty
-            if self.total_purchased_qty > 0
-            else Decimal("0")
-        )
         self.current_stock_qty -= quantity
+        self._recalculate_current_average_cost()
         self.save()
 
     def remove_sale_effect(self, quantity):
         """
-        Undo the stock effect of one sale. Used when a sale's item/length
+        Undo the stock effect of one sale. Used when a sale's item/size
         changes on edit (moving off this variant), and will be reused by
         a future delete-sale feature. Always safe (stock only increases).
         """
@@ -331,17 +338,17 @@ class SaleItem(models.Model):
     )
     quantity = models.DecimalField(max_digits=12, decimal_places=2)
     sale_price = models.DecimalField(max_digits=12, decimal_places=2)
-    purchase_price_snapshot = models.DecimalField(max_digits=12, decimal_places=2)
+    cost_price_at_sale = models.DecimalField(max_digits=12, decimal_places=2)
 
     @property
     def profit(self):
-        return (self.sale_price - self.purchase_price_snapshot) * self.quantity
+        return (self.sale_price - self.cost_price_at_sale) * self.quantity
 
     @transaction.atomic
     def save(self, *args, **kwargs):
         is_new = self._state.adding
         if is_new:
-            self.purchase_price_snapshot = self.variant.avg_purchase_price
+            self.cost_price_at_sale = self.variant.avg_purchase_price
             self.variant.record_sale(self.quantity)
         super().save(*args, **kwargs)
 

@@ -90,7 +90,7 @@ function StockCard({ item }) {
                         {item.item_name}
                     </Text>
                     <Text fontSize="12px" color="gray.500" lineHeight="1.3">
-                        {item.length}
+                        {item.size}
                     </Text>
                 </Box>
                 <Text color="black" fontSize="17px" fontWeight="bold" lineHeight="1.25" whiteSpace="nowrap" flexShrink={0}>

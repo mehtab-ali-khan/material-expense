@@ -30,7 +30,7 @@ function PurchasePage() {
     const [items, setItems] = useState([])
     const [salesmen, setSalesmen] = useState([])
     const [parties, setParties] = useState([])
-    const [lengthOptions, setLengthOptions] = useState([])
+    const [sizeOptions, setSizeOptions] = useState([])
     const [purchases, setPurchases] = useState([])
     const [showForm, setShowForm] = useState(false)
     const [editingPurchase, setEditingPurchase] = useState(null)
@@ -65,8 +65,11 @@ function PurchasePage() {
             setParties(partiesRes.data)
             setPurchases(purchasesRes.data)
 
-            const uniqueLengths = [...new Set(variantsRes.data.map((v) => v.length))]
-            setLengthOptions(uniqueLengths.map((l, i) => ({ id: i, name: l })))
+            setSizeOptions(variantsRes.data.map((variant) => ({
+                id: variant.id,
+                itemName: variant.item_name,
+                name: variant.size,
+            })))
         } catch {
             setToast('Could not load data')
         } finally {
@@ -148,7 +151,7 @@ function PurchasePage() {
                         items={items}
                         salesmen={salesmen}
                         parties={parties}
-                        lengthOptions={lengthOptions}
+                        sizeOptions={sizeOptions}
                         editingPurchase={editingPurchase}
                         onSaved={handleSaved}
                         onCancel={handleCancel}
@@ -185,7 +188,7 @@ function PurchaseCard({ purchase, onClick }) {
     const items = purchase.items || []
     const total = items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.price) || 0), 0)
     const itemLabel = items.length === 1
-        ? `${items[0].item_name} · ${items[0].length}`
+        ? `${items[0].item_name} · ${items[0].size}`
         : `${items.length} items`
 
     return (

@@ -60,7 +60,7 @@ class TestVariantAndStockIsolation:
     def test_company_cannot_sell_against_another_companys_variant(
         self, client_a, variant_factory, comp_b, make_sale_payload
     ):
-        variant_b = variant_factory(comp_b, name="Cable", length="100m")
+        variant_b = variant_factory(comp_b, name="Cable", size="100m")
         variant_b.record_purchase(Decimal("50"), Decimal("10"))
 
         res = client_a.post(

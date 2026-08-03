@@ -142,7 +142,7 @@ function ProfitCard({ sale }) {
                                     {item.item_name}
                                 </Text>
                                 <Text fontSize="12px" color="gray.500" lineHeight="1.35">
-                                    {item.length} · {item.quantity} qty · sale {formatNumber(item.sale_price)} · cost {formatNumber(item.purchase_price_snapshot)}
+                                    {item.size} · {item.quantity} qty · sale {formatNumber(item.sale_price)} · cost {formatNumber(item.cost_price_at_sale)}
                                 </Text>
                             </Box>
                             <Text fontSize="14px" color="black" fontWeight="bold" whiteSpace="nowrap">

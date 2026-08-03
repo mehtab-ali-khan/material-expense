@@ -20,6 +20,16 @@ const fieldInputStyles = {
     fontSize: '16px',
 }
 
+const getApiErrorMessage = (err, fallback) => {
+    const data = err.response?.data
+    if (typeof data === 'string') return data
+    if (typeof data?.detail === 'string') return data.detail
+    if (typeof data?.[0] === 'string') return data[0]
+    if (typeof data?.non_field_errors?.[0] === 'string') return data.non_field_errors[0]
+    const firstFieldError = Object.values(data || {}).flat().find((value) => typeof value === 'string')
+    return firstFieldError || fallback
+}
+
 function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) {
     const isEditing = !!editingSale
 
@@ -33,17 +43,17 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
         id: String(item.id || index + 1),
         itemId: item.item_id || null,
         itemName: item.item_name || '',
-        length: item.length || '',
+        size: item.size || '',
         quantity: String(item.quantity ?? ''),
         salePrice: String(item.sale_price ?? ''),
-        variants: [{ id: item.variant, length: item.length, current_stock_qty: 0 }],
-        selectedVariant: { id: item.variant, length: item.length, current_stock_qty: 0 },
+        variants: [{ id: item.variant, size: item.size, current_stock_qty: item.current_stock_qty ?? 0 }],
+        selectedVariant: { id: item.variant, size: item.size, current_stock_qty: item.current_stock_qty ?? 0 },
         loadingVariants: false,
     })) : [{
         id: Date.now().toString(),
         itemId: null,
         itemName: '',
-        length: '',
+        size: '',
         quantity: '',
         salePrice: '',
         variants: [],
@@ -133,7 +143,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
                 id: Date.now().toString(),
                 itemId: null,
                 itemName: '',
-                length: '',
+                size: '',
                 quantity: '',
                 salePrice: '',
                 variants: [],
@@ -150,7 +160,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
     const handleItemSelect = async (rowId, opt) => {
         updateRow(rowId, 'itemId', opt.id)
         updateRow(rowId, 'itemName', opt.name)
-        updateRow(rowId, 'length', '')
+        updateRow(rowId, 'size', '')
         updateRow(rowId, 'selectedVariant', null)
         updateRow(rowId, 'loadingVariants', true)
         const res = await getVariants(opt.id)
@@ -158,10 +168,10 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
         updateRow(rowId, 'loadingVariants', false)
     }
 
-    const handleLengthSelect = (rowId, opt) => {
+    const handleSizeSelect = (rowId, opt) => {
         const row = rows.find((current) => current.id === rowId)
-        const variant = row?.variants.find((variantItem) => variantItem.length === opt.name) || null
-        updateRow(rowId, 'length', opt.name)
+        const variant = row?.variants.find((variantItem) => variantItem.size === opt.name) || null
+        updateRow(rowId, 'size', opt.name)
         updateRow(rowId, 'selectedVariant', variant)
     }
 
@@ -177,7 +187,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
         for (let index = 0; index < rows.length; index += 1) {
             const row = rows[index]
             if (!row.itemName.trim()) return `Select item for row ${index + 1}`
-            if (!row.length.trim()) return `Select length for row ${index + 1}`
+            if (!row.size.trim()) return `Select size for row ${index + 1}`
             if (!row.quantity) return `Enter quantity for row ${index + 1}`
             if (!row.salePrice) return `Enter sale price for row ${index + 1}`
             const availableStock = getAvailableStock(row)
@@ -202,7 +212,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
             id: Date.now().toString(),
             itemId: null,
             itemName: '',
-            length: '',
+                size: '',
             quantity: '',
             salePrice: '',
             variants: [],
@@ -229,6 +239,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
                     salesman_name: header.salesmanName || null,
                     date: header.date,
                     items: rows.map((row) => ({
+                        id: row.id,
                         variant: row.selectedVariant.id,
                         quantity: row.quantity,
                         sale_price: row.salePrice,
@@ -250,14 +261,12 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
             }
             onSaved()
         } catch (err) {
-            const detail = err.response?.data?.[0] || err.response?.data?.non_field_errors?.[0]
-            setError(
-                typeof detail === 'string' && detail.toLowerCase().includes('stock')
-                    ? 'Not enough stock'
-                    : isEditing
-                        ? 'Could not save changes. Please check the values and try again.'
-                        : 'Could not save sale(s). Check the values and try again.'
-            )
+            setError(getApiErrorMessage(
+                err,
+                isEditing
+                    ? 'Could not save changes. Please check the values and try again.'
+                    : 'Could not save sale(s). Check the values and try again.'
+            ))
         } finally {
             setLoading(false)
         }
@@ -366,24 +375,26 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
                                             options={items}
                                             value={row.itemName}
                                             onSelect={(opt) => handleItemSelect(row.id, opt)}
-                                            onCommit={() => focusRowField(row.id, 'length')}
+                                            disabled={isEditing}
+                                        onCommit={() => focusRowField(row.id, 'size')}
                                             onFocus={() => handleFieldFocus(rowRefs.current[row.id]?.item ? { current: rowRefs.current[row.id].item } : null)}
                                             onBlur={handleFieldBlur}
                                             enterKeyHint="next"
                                             placeholder="Type to search item"
                                         />
                                     </Field>
-                                    <Field label="Length">
+                                    <Field label="Size">
                                         <SelectDropdown
-                                            inputRef={setRowRef(row.id, 'length')}
-                                            options={[...new Set(row.variants.map((variant) => variant.length))].map((length, idx) => ({ id: idx, name: length }))}
-                                            value={row.length}
-                                            onSelect={(opt) => handleLengthSelect(row.id, opt)}
+                                            inputRef={setRowRef(row.id, 'size')}
+                                            options={[...new Set(row.variants.map((variant) => variant.size))].map((size, idx) => ({ id: idx, name: size }))}
+                                            value={row.size}
+                                            onSelect={(opt) => handleSizeSelect(row.id, opt)}
+                                            disabled={isEditing}
                                             onCommit={() => focusRowField(row.id, 'quantity')}
-                                            onFocus={() => handleFieldFocus(rowRefs.current[row.id]?.length ? { current: rowRefs.current[row.id].length } : null)}
+                                        onFocus={() => handleFieldFocus(rowRefs.current[row.id]?.size ? { current: rowRefs.current[row.id].size } : null)}
                                             onBlur={handleFieldBlur}
                                             enterKeyHint="next"
-                                            placeholder="Type to search length"
+                                            placeholder="Type to search size"
                                             disabled={!row.itemName}
                                         />
                                     </Field>

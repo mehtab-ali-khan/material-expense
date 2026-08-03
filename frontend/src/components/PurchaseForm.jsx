@@ -18,7 +18,17 @@ const fieldInputStyles = {
     fontSize: '16px',
 }
 
-function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase, onSaved, onCancel }) {
+const getApiErrorMessage = (err, fallback) => {
+    const data = err.response?.data
+    if (typeof data === 'string') return data
+    if (typeof data?.detail === 'string') return data.detail
+    if (typeof data?.[0] === 'string') return data[0]
+    if (typeof data?.non_field_errors?.[0] === 'string') return data.non_field_errors[0]
+    const firstFieldError = Object.values(data || {}).flat().find((value) => typeof value === 'string')
+    return firstFieldError || fallback
+}
+
+function PurchaseForm({ items, salesmen, parties, sizeOptions, editingPurchase, onSaved, onCancel }) {
     const isEditing = !!editingPurchase
 
     // Header state
@@ -33,13 +43,13 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase
     const [rows, setRows] = useState(() => isEditing ? (editingPurchase.items || []).map((item, index) => ({
         id: String(item.id || index + 1),
         itemName: item.item_name || '',
-        length: item.length || '',
+        size: item.size || '',
         quantity: String(item.quantity ?? ''),
         price: String(item.price ?? ''),
     })) : [{
         id: Date.now().toString(),
         itemName: '',
-        length: '',
+        size: '',
         quantity: '',
         price: '',
     }])
@@ -59,8 +69,18 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase
     const updateRow = (id, field, val) => {
         setRows(rows.map(r => r.id === id ? { ...r, [field]: val } : r))
     }
+    const handleItemChange = (id, value) => {
+        setRows(rows.map((row) => (
+            row.id === id ? { ...row, itemName: value, size: '' } : row
+        )))
+    }
+    const handleItemSelect = (id, option) => {
+        setRows(rows.map((row) => (
+            row.id === id ? { ...row, itemName: option.name, size: '' } : row
+        )))
+    }
     const addRow = () => {
-        setRows([...rows, { id: Date.now().toString(), itemName: '', length: '', quantity: '', price: '' }])
+        setRows([...rows, { id: Date.now().toString(), itemName: '', size: '', quantity: '', price: '' }])
     }
     const removeRow = (id) => {
         if (rows.length > 1) {
@@ -104,7 +124,7 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase
         for (let i = 0; i < rows.length; i++) {
             const r = rows[i]
             if (!r.itemName.trim()) return `Select item for row ${i + 1}`
-            if (!r.length.trim()) return `Select length for row ${i + 1}`
+            if (!r.size.trim()) return `Select size for row ${i + 1}`
             if (!r.quantity) return `Enter quantity for row ${i + 1}`
             if (!r.price) return `Enter price for row ${i + 1}`
         }
@@ -131,8 +151,9 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase
                     salesman_name: header.salesmanName || null,
                     date: header.date,
                     items: rows.map((row) => ({
+                        id: row.id,
                         item_name: row.itemName,
-                        length: row.length,
+                        size: row.size,
                         quantity: row.quantity,
                         price: row.price,
                     })),
@@ -145,7 +166,7 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase
                     date: header.date,
                     items: rows.map(r => ({
                         item_name: r.itemName,
-                        length: r.length,
+                        size: r.size,
                         quantity: r.quantity,
                         price: r.price,
                     })),
@@ -153,12 +174,7 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase
             }
             onSaved()
         } catch (err) {
-            const detail = err.response?.data?.[0] || err.response?.data?.non_field_errors?.[0]
-            setError(
-                typeof detail === 'string'
-                    ? detail
-                    : 'Could not save purchase(s). Please check the values and try again.'
-            )
+            setError(getApiErrorMessage(err, 'Could not save purchase(s). Please check the values and try again.'))
         } finally {
             setLoading(false)
         }
@@ -252,29 +268,31 @@ function PurchaseForm({ items, salesmen, parties, lengthOptions, editingPurchase
                                         inputRef={setRowRef(row.id, 'item')}
                                         options={items}
                                         value={row.itemName}
-                                        onChange={(val) => updateRow(row.id, 'itemName', val)}
-                                        onSelect={(opt) => updateRow(row.id, 'itemName', opt.name)}
-                                        onCreate={(text) => updateRow(row.id, 'itemName', text)}
-                                        onCommit={() => focusRowField(row.id, 'length')}
+                                        onChange={(val) => handleItemChange(row.id, val)}
+                                        onSelect={(opt) => handleItemSelect(row.id, opt)}
+                                        onCreate={(text) => handleItemChange(row.id, text)}
+                                        onCommit={() => focusRowField(row.id, 'size')}
                                         onFocus={() => handleFieldFocus(rowRefs.current[row.id]?.item ? { current: rowRefs.current[row.id].item } : null)}
                                         onBlur={handleFieldBlur}
                                         enterKeyHint="next"
                                         placeholder="Type to search item"
                                     />
                                 </Field>
-                                <Field label="Length">
+                                    <Field label="Size">
                                     <SearchableDropdown
-                                        inputRef={setRowRef(row.id, 'length')}
-                                        options={lengthOptions}
-                                        value={row.length}
-                                        onChange={(val) => updateRow(row.id, 'length', val)}
-                                        onSelect={(opt) => updateRow(row.id, 'length', opt.name)}
-                                        onCreate={(text) => updateRow(row.id, 'length', text)}
+                                        inputRef={setRowRef(row.id, 'size')}
+                                        options={sizeOptions.filter((option) => (
+                                            option.itemName?.trim().toLowerCase() === row.itemName.trim().toLowerCase()
+                                        ))}
+                                        value={row.size}
+                                        onChange={(val) => updateRow(row.id, 'size', val)}
+                                        onSelect={(opt) => updateRow(row.id, 'size', opt.name)}
+                                        onCreate={(text) => updateRow(row.id, 'size', text)}
                                         onCommit={() => focusRowField(row.id, 'quantity')}
-                                        onFocus={() => handleFieldFocus(rowRefs.current[row.id]?.length ? { current: rowRefs.current[row.id].length } : null)}
+                                        onFocus={() => handleFieldFocus(rowRefs.current[row.id]?.size ? { current: rowRefs.current[row.id].size } : null)}
                                         onBlur={handleFieldBlur}
                                         enterKeyHint="next"
-                                        placeholder="Type to search length"
+                                        placeholder="Type to search size"
                                     />
                                 </Field>
                                 <SimpleGrid columns={2} gap={4}>

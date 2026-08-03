@@ -7,10 +7,10 @@ Core rules under test:
   quantity both work correctly.
 - Purchase edits that would drive stock negative (because sales already
   consumed that stock) are blocked with a 400.
-- Sale edits preserve purchase_price_snapshot (cost basis doesn't drift).
+- Sale edits preserve cost_price_at_sale (cost basis doesn't drift).
 - Sale edits that would oversell (qty increased beyond available stock)
   are blocked with a 400.
-- item_name/length are immutable on edit even if sent in the payload.
+- item_name/size changes are validated against available stock.
 - Edits are scoped per-company (404 across tenants).
 """
 
@@ -123,26 +123,26 @@ class TestPurchaseEdit:
     ):
         res = client_a.post(
             "/api/purchases/",
-            make_purchase_payload(item_name="Steel Rod", length="20ft"),
+            make_purchase_payload(item_name="Steel Rod", size="20ft"),
         )
         purchase_id = res.data["id"]
         original_variant_id = Purchase.objects.get(id=purchase_id).variant_id
 
-        # attempt to change item/length via edit -- should simply be ignored
+        # A purchase item/size change is allowed when no stock was sold.
         res = client_a.patch(
             f"/api/purchases/{purchase_id}/",
             {
                 "item_name": "Totally Different Item",
-                "length": "999ft",
+                "size": "999ft",
                 "quantity": "12",
             },
         )
         assert res.status_code == 200
 
         purchase = Purchase.objects.get(id=purchase_id)
-        assert purchase.variant_id == original_variant_id
+        assert purchase.variant_id != original_variant_id
         assert purchase.variant.item.name == "Steel Rod"
-        assert purchase.variant.length == "20ft"
+        assert purchase.variant.size == "999ft"
         assert purchase.quantity == Decimal("12")  # the allowed field did update
 
     def test_editing_salesman_and_party_updates_relations(
@@ -266,7 +266,7 @@ class TestSaleEdit:
         sale = Sale.objects.get(id=sale_id)
         assert sale.quantity == Decimal("50")  # unchanged
 
-    def test_editing_sale_price_or_quantity_preserves_purchase_price_snapshot(
+    def test_editing_sale_price_or_quantity_preserves_cost_price_at_sale(
         self, client_a, make_purchase_payload
     ):
         # avg = 100 at time of sale
@@ -287,7 +287,7 @@ class TestSaleEdit:
         )
         sale_id = res.data["id"]
         sale = Sale.objects.get(id=sale_id)
-        assert sale.purchase_price_snapshot == Decimal("100")
+        assert sale.cost_price_at_sale == Decimal("100")
 
         # avg price shifts due to a new purchase
         client_a.post(
@@ -303,7 +303,7 @@ class TestSaleEdit:
         assert res.status_code == 200
 
         sale.refresh_from_db()
-        assert sale.purchase_price_snapshot == Decimal("100")  # unchanged
+        assert sale.cost_price_at_sale == Decimal("100")  # unchanged
         assert sale.quantity == Decimal("3")
         assert sale.sale_price == Decimal("180")
         assert sale.profit == (Decimal("180") - Decimal("100")) * Decimal("3")
@@ -313,7 +313,7 @@ class TestSaleEdit:
     ):
         client_a.post(
             "/api/purchases/",
-            make_purchase_payload(item_name="Steel Rod", length="20ft"),
+            make_purchase_payload(item_name="Steel Rod", size="20ft"),
         )
         variant = ItemVariant.objects.get(item__name="Steel Rod")
         res = client_a.post(
@@ -332,7 +332,7 @@ class TestSaleEdit:
         # try to smuggle a different variant id in — should be ignored
         other_res = client_a.post(
             "/api/purchases/",
-            make_purchase_payload(item_name="Other Item", length="5ft"),
+            make_purchase_payload(item_name="Other Item", size="5ft"),
         )
         other_variant = ItemVariant.objects.get(item__name="Other Item")
 
@@ -344,7 +344,7 @@ class TestSaleEdit:
         sale = Sale.objects.get(id=sale_id)
         assert sale.variant_id == variant.id  # unchanged, ignored the smuggled id
         assert res.data["item_name"] == "Steel Rod"
-        assert res.data["length"] == "20ft"
+        assert res.data["size"] == "20ft"
 
     def test_editing_salesman_and_party_updates_relations(
         self, client_a, make_purchase_payload

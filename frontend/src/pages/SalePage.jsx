@@ -175,7 +175,7 @@ function SaleCard({ sale, onClick }) {
     const items = sale.items || []
     const total = items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.sale_price) || 0), 0)
     const itemLabel = items.length === 1
-        ? `${items[0].item_name} · ${items[0].length}`
+        ? `${items[0].item_name} · ${items[0].size}`
         : `${items.length} items`
 
     return (
