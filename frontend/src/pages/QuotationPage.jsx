@@ -11,7 +11,7 @@ import DateFilterBar from '../components/DateFilterBar'
 import { downloadQuotationPdf } from '../utils/generateQuotationPdf'
 import { useAuth } from '../context/AuthContext'
 import { getParties } from '../api/parties'
-import { getQuotations, createQuotation, updateQuotation } from '../api/quotations'
+import { getQuotations, createQuotation } from '../api/quotations'
 import { PlusIcon, XIcon, SaveIcon, ArrowUpRightIcon } from '../components/Icons'
 
 const emptyItems = () => [{ description: '', qty: '', price: '' }]
@@ -28,6 +28,7 @@ const formatMoney = (value) => {
     return number.toLocaleString('en-US', { maximumFractionDigits: 2 })
 }
 
+// 'list' | 'view' | 'edit'
 function QuotationPage() {
     const { companyName, profile } = useAuth()
 
@@ -39,8 +40,8 @@ function QuotationPage() {
     const [searchInput, setSearchInput] = useState('')
     const [dateFilter, setDateFilter] = useState()
 
-    const [showForm, setShowForm] = useState(false)
-    const [editingQuotation, setEditingQuotation] = useState(null)
+    const [mode, setMode] = useState('list')
+    const [viewingQuotation, setViewingQuotation] = useState(null)
     const [activeTab, setActiveTab] = useState('form')
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState('')
@@ -94,35 +95,39 @@ function QuotationPage() {
     }
 
     const handleAddNew = () => {
-        setEditingQuotation(null)
         resetForm()
-        setShowForm(true)
+        setMode('edit')
     }
 
     const handleCardClick = (quotation) => {
-        setEditingQuotation(quotation)
-        setDate(quotation.date)
+        setViewingQuotation(quotation)
+        setMode('view')
+    }
+
+    const handleUseThisQuotation = () => {
+        const q = viewingQuotation
+        setDate(q.date)
         setItems(
-            quotation.items && quotation.items.length > 0
-                ? quotation.items.map((it) => ({
+            q.items && q.items.length > 0
+                ? q.items.map((it) => ({
                     description: it.description,
                     qty: String(it.qty),
                     price: String(it.price),
                 }))
                 : emptyItems()
         )
-        setVatPercent(String(quotation.vat_percent ?? '0'))
-        setAdvancePercent(String(quotation.advance_percent ?? '0'))
-        setPartyName(quotation.party_name || '')
-        setPartyContact(quotation.party_contact || '')
+        setVatPercent(String(q.vat_percent ?? '0'))
+        setAdvancePercent(String(q.advance_percent ?? '0'))
+        setPartyName(q.party_name || '')
+        setPartyContact(q.party_contact || '')
         setError('')
         setActiveTab('form')
-        setShowForm(true)
+        setMode('edit')
     }
 
     const handleCancel = () => {
-        setShowForm(false)
-        setEditingQuotation(null)
+        setMode('list')
+        setViewingQuotation(null)
     }
 
     const validItems = items.filter((it) => it.description.trim() && it.qty && it.price)
@@ -143,6 +148,15 @@ function QuotationPage() {
         last_name: profile.lastName,
         phone: profile.phone,
     }
+
+    const viewCompany = viewingQuotation
+        ? {
+            name: companyName,
+            first_name: profile.firstName,
+            last_name: profile.lastName,
+            phone: profile.phone,
+        }
+        : company
 
     const handleSaveAndDownload = async () => {
         setError('')
@@ -166,13 +180,8 @@ function QuotationPage() {
 
         setSaving(true)
         try {
-            if (editingQuotation) {
-                await updateQuotation(editingQuotation.id, payload)
-                setToast('Quotation updated')
-            } else {
-                await createQuotation(payload)
-                setToast('Quotation saved')
-            }
+            await createQuotation(payload)
+            setToast('Quotation saved')
 
             downloadQuotationPdf({
                 company,
@@ -182,8 +191,8 @@ function QuotationPage() {
                 advancePercent,
             })
 
-            setShowForm(false)
-            setEditingQuotation(null)
+            setMode('list')
+            setViewingQuotation(null)
             loadAll()
         } catch {
             setError('Could not save quotation. Please check the values and try again.')
@@ -192,138 +201,171 @@ function QuotationPage() {
         }
     }
 
+    const headingText =
+        mode === 'view' ? 'Quotation' : mode === 'edit' ? 'New quotation' : 'Quotations'
+
     return (
-        <AppLayout hideBottomNav={showForm}>
+        <AppLayout hideBottomNav={mode !== 'list'}>
             <Box
                 px={4}
                 pt="calc(16px + env(safe-area-inset-top))"
-                pb={showForm ? 4 : 'calc(88px + env(safe-area-inset-bottom))'}
+                pb={mode !== 'list' ? 4 : 'calc(88px + env(safe-area-inset-bottom))'}
             >
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
                     <Heading fontSize="24px" lineHeight="1.1" color="black">
-                        {showForm ? (editingQuotation ? 'Edit quotation' : 'Add quotation') : 'Quotations'}
+                        {headingText}
                     </Heading>
                     <Button
                         display="inline-flex"
                         minH="38px"
                         px={4}
                         borderRadius="full"
-                        bg={showForm ? 'white' : 'black'}
-                        color={showForm ? 'black' : 'white'}
-                        border={showForm ? '1px solid' : 'none'}
+                        bg={mode === 'list' ? 'black' : 'white'}
+                        color={mode === 'list' ? 'white' : 'black'}
+                        border={mode === 'list' ? 'none' : '1px solid'}
                         borderColor="gray.200"
                         fontWeight="semibold"
                         fontSize="14px"
                         _hover={{ bg: 'gray.800' }}
-                        onClick={showForm ? handleCancel : handleAddNew}
+                        onClick={mode === 'list' ? handleAddNew : handleCancel}
                     >
-                        {showForm ? <XIcon /> : <PlusIcon />}
-                        {showForm ? 'Cancel' : 'Add New'}
+                        {mode === 'list' ? <PlusIcon /> : <XIcon />}
+                        {mode === 'list' ? 'Add New' : 'Cancel'}
                     </Button>
                 </Box>
 
-                {!showForm && (
+                {mode === 'list' && (
                     <HStack mb={3} gap={2} align="center">
                         <DateFilterBar value={dateFilter} onChange={setDateFilter} />
                         <SearchBar value={searchInput} onChange={setSearchInput} placeholder="Search company or contact" />
                     </HStack>
                 )}
 
-                {showForm ? (
+                {mode === 'view' && viewingQuotation && (
                     <>
-                        <Tabs.Root value={activeTab} onValueChange={(e) => setActiveTab(e.value)} variant="plain">
-                            <Tabs.List mb={4} w="100%" position="relative">
-                                <Tabs.Trigger value="form" flex="1" justifyContent="center">
-                                    Form
-                                </Tabs.Trigger>
-                                <Tabs.Trigger value="preview" flex="1" justifyContent="center">
-                                    Preview
-                                </Tabs.Trigger>
-                                <Tabs.Indicator
-                                    bg="black"
-                                    height="2px"
-                                    bottom="0"
-                                    transition="all 0.5s cubic-bezier(0.4, 0, 0.2, 1)"
-                                />
-                            </Tabs.List>
+                        <QuotationPreview
+                            company={viewCompany}
+                            date={viewingQuotation.date}
+                            items={viewingQuotation.items.map((it) => ({
+                                description: it.description,
+                                qty: it.qty,
+                                price: it.price,
+                            }))}
+                            vatPercent={viewingQuotation.vat_percent}
+                            advancePercent={viewingQuotation.advance_percent}
+                        />
 
-                            <Tabs.Content value="form">
-                                <QuotationForm
-                                    date={date} setDate={setDate}
-                                    items={items} setItems={setItems}
-                                    vatPercent={vatPercent} setVatPercent={setVatPercent}
-                                    advancePercent={advancePercent} setAdvancePercent={setAdvancePercent}
-                                    parties={parties}
-                                    partyName={partyName} setPartyName={setPartyName}
-                                    partyContact={partyContact} setPartyContact={setPartyContact}
-                                />
-
-                                {error && <Box mt={3}><FormMessage tone="error">{error}</FormMessage></Box>}
-
-                                <HStack justify="center" mt={8}>
-                                    <Button
-                                        onClick={() => setActiveTab('preview')}
-                                        minH="38px" w="full" borderRadius="full"
-                                        bg="black" color="white" fontWeight="semibold"
-                                        _hover={{ bg: 'gray.800' }}
-                                    >
-                                        <ArrowUpRightIcon boxSize={4} />
-                                        Preview
-                                    </Button>
-                                </HStack>
-                            </Tabs.Content>
-
-                            <Tabs.Content value="preview">
-                                <QuotationPreview
-                                    company={company}
-                                    date={date}
-                                    items={validItems}
-                                    vatPercent={vatPercent}
-                                    advancePercent={advancePercent}
-                                />
-
-                                {error && <Box mt={3}><FormMessage tone="error">{error}</FormMessage></Box>}
-
-                                <HStack justify="center" mt={8}>
-                                    <Button
-                                        onClick={handleSaveAndDownload}
-                                        loading={saving}
-                                        disabled={!isValid}
-                                        minH="38px" w="full" borderRadius="full"
-                                        bg="black" color="white" fontWeight="semibold"
-                                        _hover={{ bg: 'gray.800' }}
-                                        _disabled={{ bg: 'gray.300', color: 'gray.600', cursor: 'not-allowed' }}
-                                    >
-                                        <SaveIcon boxSize={4} />
-                                        {editingQuotation ? 'Update & Download PDF' : 'Save & Download PDF'}
-                                    </Button>
-                                </HStack>
-                            </Tabs.Content>
-                        </Tabs.Root>
+                        <HStack justify="center" mt={8}>
+                            <Button
+                                onClick={handleUseThisQuotation}
+                                minH="38px" w="full" borderRadius="full"
+                                bg="black" color="white" fontWeight="semibold"
+                                _hover={{ bg: 'gray.800' }}
+                            >
+                                <ArrowUpRightIcon boxSize={4} />
+                                Use this quotation
+                            </Button>
+                        </HStack>
                     </>
-                ) : loading ? (
-                    <PageLoader />
-                ) : quotations.length === 0 ? (
-                    <Box
-                        bg="white"
-                        border="1px solid"
-                        borderColor="gray.200"
-                        borderRadius="2xl"
-                        px={5}
-                        py={8}
-                        textAlign="center"
-                    >
-                        <Text color="black" fontWeight="semibold">Nothing here yet</Text>
-                        <Text color="gray.500" fontSize="14px" mt={1}>New entries will appear here.</Text>
-                    </Box>
-                ) : (
-                    <VStack gap={2} align="stretch">
-                        {[...quotations]
-                            .sort((a, b) => new Date(b.date) - new Date(a.date) || b.id - a.id)
-                            .map((q) => (
-                                <QuotationCard key={q.id} quotation={q} onClick={() => handleCardClick(q)} />
-                            ))}
-                    </VStack>
+                )}
+
+                {mode === 'edit' && (
+                    <Tabs.Root value={activeTab} onValueChange={(e) => setActiveTab(e.value)} variant="plain">
+                        <Tabs.List mb={4} w="100%" position="relative">
+                            <Tabs.Trigger value="form" flex="1" justifyContent="center">
+                                Form
+                            </Tabs.Trigger>
+                            <Tabs.Trigger value="preview" flex="1" justifyContent="center">
+                                Preview
+                            </Tabs.Trigger>
+                            <Tabs.Indicator
+                                bg="black"
+                                height="2px"
+                                bottom="0"
+                                transition="all 0.5s cubic-bezier(0.4, 0, 0.2, 1)"
+                            />
+                        </Tabs.List>
+
+                        <Tabs.Content value="form">
+                            <QuotationForm
+                                date={date} setDate={setDate}
+                                items={items} setItems={setItems}
+                                vatPercent={vatPercent} setVatPercent={setVatPercent}
+                                advancePercent={advancePercent} setAdvancePercent={setAdvancePercent}
+                                parties={parties}
+                                partyName={partyName} setPartyName={setPartyName}
+                                partyContact={partyContact} setPartyContact={setPartyContact}
+                            />
+
+                            {error && <Box mt={3}><FormMessage tone="error">{error}</FormMessage></Box>}
+
+                            <HStack justify="center" mt={8}>
+                                <Button
+                                    onClick={() => setActiveTab('preview')}
+                                    minH="38px" w="full" borderRadius="full"
+                                    bg="black" color="white" fontWeight="semibold"
+                                    _hover={{ bg: 'gray.800' }}
+                                >
+                                    <ArrowUpRightIcon boxSize={4} />
+                                    Preview
+                                </Button>
+                            </HStack>
+                        </Tabs.Content>
+
+                        <Tabs.Content value="preview">
+                            <QuotationPreview
+                                company={company}
+                                date={date}
+                                items={validItems}
+                                vatPercent={vatPercent}
+                                advancePercent={advancePercent}
+                            />
+
+                            {error && <Box mt={3}><FormMessage tone="error">{error}</FormMessage></Box>}
+
+                            <HStack justify="center" mt={8}>
+                                <Button
+                                    onClick={handleSaveAndDownload}
+                                    loading={saving}
+                                    disabled={!isValid}
+                                    minH="38px" w="full" borderRadius="full"
+                                    bg="black" color="white" fontWeight="semibold"
+                                    _hover={{ bg: 'gray.800' }}
+                                    _disabled={{ bg: 'gray.300', color: 'gray.600', cursor: 'not-allowed' }}
+                                >
+                                    <SaveIcon boxSize={4} />
+                                    Save & Download
+                                </Button>
+                            </HStack>
+                        </Tabs.Content>
+                    </Tabs.Root>
+                )}
+
+                {mode === 'list' && (
+                    loading ? (
+                        <PageLoader />
+                    ) : quotations.length === 0 ? (
+                        <Box
+                            bg="white"
+                            border="1px solid"
+                            borderColor="gray.200"
+                            borderRadius="2xl"
+                            px={5}
+                            py={8}
+                            textAlign="center"
+                        >
+                            <Text color="black" fontWeight="semibold">Nothing here yet</Text>
+                            <Text color="gray.500" fontSize="14px" mt={1}>New entries will appear here.</Text>
+                        </Box>
+                    ) : (
+                        <VStack gap={2} align="stretch">
+                            {[...quotations]
+                                .sort((a, b) => new Date(b.date) - new Date(a.date) || b.id - a.id)
+                                .map((q) => (
+                                    <QuotationCard key={q.id} quotation={q} onClick={() => handleCardClick(q)} />
+                                ))}
+                        </VStack>
+                    )
                 )}
             </Box>
             <ToastMessage message={toast} onDone={() => setToast('')} />
