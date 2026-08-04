@@ -71,7 +71,7 @@ class SalesmanSerializer(serializers.ModelSerializer):
 class PartySerializer(serializers.ModelSerializer):
     class Meta:
         model = Party
-        fields = ["id", "name", "contact"]
+        fields = ["id", "name", "contact", "party_type"]
 
 
 class ItemVariantSerializer(serializers.ModelSerializer):
@@ -170,14 +170,23 @@ class PurchaseSerializer(serializers.ModelSerializer):
 
         party_name = validated_data.pop("party_name").strip()
         party_contact = validated_data.pop("party_contact").strip()
-        party, created = Party.objects.get_or_create(
+        # Prefer existing purchase-type party; create if missing
+        party = Party.objects.filter(
             company=company,
             name__iexact=party_name,
-            defaults={"name": party_name, "contact": party_contact},
-        )
-        if not created and party_contact and party_contact != party.contact:
-            party.contact = party_contact
-            party.save()
+            party_type=Party.PARTY_TYPE_PURCHASE,
+        ).first()
+        if not party:
+            party = Party.objects.create(
+                company=company,
+                name=party_name,
+                contact=party_contact,
+                party_type=Party.PARTY_TYPE_PURCHASE,
+            )
+        else:
+            if party_contact and party_contact != party.contact:
+                party.contact = party_contact
+                party.save()
         return company, party, salesman
 
     def create(self, validated_data):
@@ -326,14 +335,22 @@ class SaleSerializer(serializers.ModelSerializer):
             )
         party_name = validated_data.pop("party_name").strip()
         party_contact = validated_data.pop("party_contact").strip()
-        party, created = Party.objects.get_or_create(
+        party = Party.objects.filter(
             company=company,
             name__iexact=party_name,
-            defaults={"name": party_name, "contact": party_contact},
-        )
-        if not created and party_contact and party_contact != party.contact:
-            party.contact = party_contact
-            party.save()
+            party_type=Party.PARTY_TYPE_SALE,
+        ).first()
+        if not party:
+            party = Party.objects.create(
+                company=company,
+                name=party_name,
+                contact=party_contact,
+                party_type=Party.PARTY_TYPE_SALE,
+            )
+        else:
+            if party_contact and party_contact != party.contact:
+                party.contact = party_contact
+                party.save()
 
         try:
             with transaction.atomic():
@@ -370,14 +387,22 @@ class SaleSerializer(serializers.ModelSerializer):
             )
         party_name = validated_data.pop("party_name").strip()
         party_contact = validated_data.pop("party_contact").strip()
-        party, created = Party.objects.get_or_create(
+        party = Party.objects.filter(
             company=company,
             name__iexact=party_name,
-            defaults={"name": party_name, "contact": party_contact},
-        )
-        if not created and party_contact and party_contact != party.contact:
-            party.contact = party_contact
-            party.save()
+            party_type=Party.PARTY_TYPE_SALE,
+        ).first()
+        if not party:
+            party = Party.objects.create(
+                company=company,
+                name=party_name,
+                contact=party_contact,
+                party_type=Party.PARTY_TYPE_SALE,
+            )
+        else:
+            if party_contact and party_contact != party.contact:
+                party.contact = party_contact
+                party.save()
 
         try:
             with transaction.atomic():
@@ -495,14 +520,22 @@ class QuotationSerializer(serializers.ModelSerializer):
     def _resolve_party(self, company, party_name, party_contact):
         party_name = party_name.strip()
         party_contact = party_contact.strip()
-        party, created = Party.objects.get_or_create(
+        party = Party.objects.filter(
             company=company,
             name__iexact=party_name,
-            defaults={"name": party_name, "contact": party_contact},
-        )
-        if not created and party_contact and party_contact != party.contact:
-            party.contact = party_contact
-            party.save()
+            party_type=Party.PARTY_TYPE_SALE,
+        ).first()
+        if not party:
+            party = Party.objects.create(
+                company=company,
+                name=party_name,
+                contact=party_contact,
+                party_type=Party.PARTY_TYPE_SALE,
+            )
+        else:
+            if party_contact and party_contact != party.contact:
+                party.contact = party_contact
+                party.save()
         return party
 
     def create(self, validated_data):

@@ -56,7 +56,7 @@ function PurchasePage() {
             const [itemsRes, salesmenRes, partiesRes, variantsRes, purchasesRes] = await Promise.all([
                 getItems(),
                 getSalesmen(),
-                getParties(),
+                getParties('purchase'),
                 getVariants(),
                 getPurchases(filters),
             ])

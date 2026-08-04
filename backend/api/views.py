@@ -126,7 +126,11 @@ class PartyListCreateView(generics.ListCreateAPIView):
     serializer_class = PartySerializer
 
     def get_queryset(self):
-        return Party.objects.filter(company=self.request.user).order_by("name")
+        qs = Party.objects.filter(company=self.request.user)
+        party_type = self.request.query_params.get("type")
+        if party_type in (Party.PARTY_TYPE_PURCHASE, Party.PARTY_TYPE_SALE):
+            qs = qs.filter(party_type=party_type)
+        return qs.order_by("name")
 
     def perform_create(self, serializer):
         serializer.save(company=self.request.user)
@@ -149,9 +153,7 @@ class PurchaseListCreateView(generics.ListCreateAPIView):
     serializer_class = PurchaseSerializer
 
     def get_queryset(self):
-        qs = Purchase.objects.filter(company=self.request.user).order_by(
-            "-created_at"
-        )
+        qs = Purchase.objects.filter(company=self.request.user).order_by("-created_at")
 
         date = self.request.query_params.get("date")
         date_from = self.request.query_params.get("date_from")
@@ -188,9 +190,7 @@ class SaleListCreateView(generics.ListCreateAPIView):
     serializer_class = SaleSerializer
 
     def get_queryset(self):
-        qs = Sale.objects.filter(company=self.request.user).order_by(
-            "-created_at"
-        )
+        qs = Sale.objects.filter(company=self.request.user).order_by("-created_at")
 
         date = self.request.query_params.get("date")
         date_from = self.request.query_params.get("date_from")

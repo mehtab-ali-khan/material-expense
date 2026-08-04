@@ -53,7 +53,7 @@ function SalePage() {
             const [itemsRes, salesmenRes, partiesRes, salesRes] = await Promise.all([
                 getItems(),
                 getSalesmen(),
-                getParties(),
+                getParties('sale'),
                 getSales(filters),
             ])
             setItems(itemsRes.data)

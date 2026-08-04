@@ -1,3 +1,6 @@
 import apiClient from './client'
 
-export const getParties = () => apiClient.get('/parties/')
+export const getParties = (type) => {
+	const params = type ? { params: { type } } : {}
+	return apiClient.get('/parties/', params)
+}

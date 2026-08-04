@@ -67,7 +67,7 @@ function QuotationPage() {
 
             const [quotationsRes, partiesRes] = await Promise.all([
                 getQuotations(filters),
-                getParties(),
+                getParties('sale'),
             ])
             setQuotations(quotationsRes.data)
             setParties(partiesRes.data)

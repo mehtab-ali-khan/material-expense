@@ -83,12 +83,22 @@ class Party(models.Model):
     )
     name = models.CharField(max_length=255)
     contact = models.CharField(max_length=32)
+    PARTY_TYPE_PURCHASE = "purchase"
+    PARTY_TYPE_SALE = "sale"
+    PARTY_TYPE_CHOICES = [
+        (PARTY_TYPE_PURCHASE, "Purchase"),
+        (PARTY_TYPE_SALE, "Sale"),
+    ]
+    party_type = models.CharField(max_length=10, choices=PARTY_TYPE_CHOICES, null=True)
 
     class Meta:
-        unique_together = ("company", "name")
+        unique_together = ("company", "name", "party_type")
         constraints = [
             models.UniqueConstraint(
-                Lower("name"), "company", name="party_company_name_ci_unique"
+                Lower("name"),
+                "company",
+                "party_type",
+                name="party_company_name_type_ci_unique",
             )
         ]
 
@@ -229,7 +239,11 @@ class Purchase(models.Model):
         Salesman, on_delete=models.SET_NULL, null=True, related_name="purchases"
     )
     party = models.ForeignKey(
-        Party, on_delete=models.SET_NULL, null=True, related_name="purchases"
+        Party,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="purchases",
+        limit_choices_to={"party_type": Party.PARTY_TYPE_PURCHASE},
     )
     date = models.DateField(db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -265,7 +279,11 @@ class Sale(models.Model):
         Salesman, on_delete=models.SET_NULL, null=True, related_name="sales"
     )
     party = models.ForeignKey(
-        Party, on_delete=models.SET_NULL, null=True, related_name="sales"
+        Party,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="sales",
+        limit_choices_to={"party_type": Party.PARTY_TYPE_SALE},
     )
     date = models.DateField(db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -312,7 +330,11 @@ class Quotation(models.Model):
         Company, on_delete=models.CASCADE, related_name="quotations"
     )
     party = models.ForeignKey(
-        Party, on_delete=models.SET_NULL, null=True, related_name="quotations"
+        Party,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="quotations",
+        limit_choices_to={"party_type": Party.PARTY_TYPE_SALE},
     )
     date = models.DateField(db_index=True)
     vat_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
