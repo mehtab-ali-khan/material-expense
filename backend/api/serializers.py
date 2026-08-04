@@ -79,14 +79,7 @@ class ItemVariantSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ItemVariant
-        fields = [
-            "id",
-            "item",
-            "item_name",
-            "size",
-            "current_stock_qty",
-            "avg_purchase_price",
-        ]
+        fields = ["id", "item", "item_name", "size", "price", "current_stock_qty"]
 
 
 class PurchaseLineSerializer(serializers.ModelSerializer):
@@ -102,6 +95,7 @@ class PurchaseLineSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         data["item_name"] = instance.variant.item.name
         data["size"] = instance.variant.size
+        data["price"] = str(instance.variant.price)
         return data
 
 
@@ -110,6 +104,9 @@ class SaleLineSerializer(serializers.ModelSerializer):
     item_id = serializers.IntegerField(source="variant.item_id", read_only=True)
     item_name = serializers.CharField(source="variant.item.name", read_only=True)
     size = serializers.CharField(source="variant.size", read_only=True)
+    variant_price = serializers.DecimalField(
+        source="variant.price", max_digits=12, decimal_places=2, read_only=True
+    )
     current_stock_qty = serializers.DecimalField(
         source="variant.current_stock_qty",
         max_digits=12,
@@ -129,6 +126,7 @@ class SaleLineSerializer(serializers.ModelSerializer):
             "variant",
             "item_name",
             "size",
+            "variant_price",
             "current_stock_qty",
             "quantity",
             "sale_price",
@@ -149,8 +147,13 @@ class PurchaseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Purchase
         fields = [
-            "id", "items", "salesman_name", "party_name", "party_contact",
-            "date", "created_at",
+            "id",
+            "items",
+            "salesman_name",
+            "party_name",
+            "party_contact",
+            "date",
+            "created_at",
         ]
         read_only_fields = ["id", "created_at"]
 
@@ -200,7 +203,8 @@ class PurchaseSerializer(serializers.ModelSerializer):
                 variant, _ = ItemVariant.objects.get_or_create(
                     item=item,
                     size__iexact=size,
-                    defaults={"size": size},
+                    price=item_data["price"],
+                    defaults={"size": size, "price": item_data["price"]},
                 )
                 PurchaseItem.objects.create(
                     purchase=purchase,
@@ -238,7 +242,8 @@ class PurchaseSerializer(serializers.ModelSerializer):
                 variant, _ = ItemVariant.objects.get_or_create(
                     item=item,
                     size__iexact=size,
-                    defaults={"size": size},
+                    price=item_data["price"],
+                    defaults={"size": size, "price": item_data["price"]},
                 )
 
                 item_id = item_data.get("id")
@@ -248,18 +253,11 @@ class PurchaseSerializer(serializers.ModelSerializer):
                     try:
                         if old_item.variant_id == variant.id:
                             old_item.variant.adjust_purchase(
-                                old_item.quantity,
-                                old_item.price,
-                                item_data["quantity"],
-                                item_data["price"],
+                                old_item.quantity, item_data["quantity"]
                             )
                         else:
-                            old_item.variant.remove_purchase_effect(
-                                old_item.quantity, old_item.price
-                            )
-                            variant.record_purchase(
-                                item_data["quantity"], item_data["price"]
-                            )
+                            old_item.variant.remove_purchase_effect(old_item.quantity)
+                            variant.record_purchase(item_data["quantity"])
                     except DjangoValidationError as exc:
                         raise DRFValidationError(exc.message)
 
@@ -305,8 +303,13 @@ class SaleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sale
         fields = [
-            "id", "items", "salesman_name", "party_name", "party_contact",
-            "date", "created_at",
+            "id",
+            "items",
+            "salesman_name",
+            "party_name",
+            "party_contact",
+            "date",
+            "created_at",
         ]
         read_only_fields = ["id", "created_at"]
 
@@ -379,8 +382,7 @@ class SaleSerializer(serializers.ModelSerializer):
         try:
             with transaction.atomic():
                 existing_items = {
-                    item.id: item
-                    for item in instance.items.select_related("variant")
+                    item.id: item for item in instance.items.select_related("variant")
                 }
 
                 # Temporarily restore all stock consumed by the existing sale.

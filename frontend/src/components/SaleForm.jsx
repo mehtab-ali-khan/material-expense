@@ -111,10 +111,12 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
             setRows((current) => current.map((row, index) => {
                 const { item, variants } = loaded[index] || {}
                 if (!item) return row
+                const priceOptions = variants.filter((v) => v.size === item.size && Number(v.current_stock_qty) > 0)
                 return {
                     ...row,
                     variants,
-                    selectedVariant: variants.find((variant) => variant.id === item.variant) || null,
+                    priceOptions,
+                    selectedVariant: variants.find((variant) => variant.id === item.variant) || (priceOptions.length === 1 ? priceOptions[0] : null),
                     loadingVariants: false,
                 }
             }))
@@ -169,15 +171,27 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
     }
 
     const handleSizeSelect = (rowId, opt) => {
-        const row = rows.find((current) => current.id === rowId)
-        const variant = row?.variants.find((variantItem) => variantItem.size === opt.name) || null
+        const row = rows.find((r) => r.id === rowId)
+        const matches = (row?.variants || []).filter(
+            (v) => v.size === opt.name && Number(v.current_stock_qty) > 0
+        )
         updateRow(rowId, 'size', opt.name)
+        updateRow(rowId, 'priceOptions', matches)
+        if (matches.length === 1) {
+            updateRow(rowId, 'selectedVariant', matches[0])
+        } else {
+            updateRow(rowId, 'selectedVariant', null)
+        }
+    }
+
+    const handlePriceSelect = (rowId, variant) => {
         updateRow(rowId, 'selectedVariant', variant)
     }
 
     const getAvailableStock = (row) => {
-        if (!row.selectedVariant) return 0
-        return Number(row.selectedVariant.current_stock_qty ?? 0)
+        const selected = row.selectedVariant || (row.priceOptions ?? (row.size ? (row.variants || []).filter((v) => v.size === row.size && Number(v.current_stock_qty) > 0) : [])?.[0])
+        if (!selected) return 0
+        return Number(selected.current_stock_qty ?? 0)
     }
 
     const disabledReason = useMemo(() => {
@@ -212,7 +226,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
             id: Date.now().toString(),
             itemId: null,
             itemName: '',
-                size: '',
+            size: '',
             quantity: '',
             salePrice: '',
             variants: [],
@@ -230,6 +244,12 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
             return
         }
 
+        const getRowVariantId = (row) => {
+            if (row.selectedVariant) return row.selectedVariant.id
+            const options = row.priceOptions ?? (row.size ? (row.variants || []).filter((v) => v.size === row.size && Number(v.current_stock_qty) > 0) : [])
+            return options.length ? options[0].id : null
+        }
+
         setLoading(true)
         try {
             if (isEditing) {
@@ -240,7 +260,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
                     date: header.date,
                     items: rows.map((row) => ({
                         id: row.id,
-                        variant: row.selectedVariant.id,
+                        variant: getRowVariantId(row),
                         quantity: row.quantity,
                         sale_price: row.salePrice,
                     })),
@@ -252,7 +272,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
                     salesman_name: header.salesmanName || null,
                     date: header.date,
                     items: rows.map((row) => ({
-                        variant: row.selectedVariant.id,
+                        variant: getRowVariantId(row),
                         quantity: row.quantity,
                         sale_price: row.salePrice,
                     })),
@@ -344,7 +364,11 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
                     </Field>
 
                     {rows.map((row, index) => {
-                        const availableStock = getAvailableStock(row)
+                        const sizePriceOptions = row.priceOptions ?? (row.size ? (row.variants || []).filter((v) => v.size === row.size && Number(v.current_stock_qty) > 0) : [])
+                        const hasMultiplePrices = sizePriceOptions.length > 1
+                        const hasSinglePrice = sizePriceOptions.length === 1
+                        const effectiveSelectedVariant = row.selectedVariant || (hasSinglePrice ? sizePriceOptions[0] : null)
+                        const availableStock = effectiveSelectedVariant ? Number(effectiveSelectedVariant.current_stock_qty ?? 0) : 0
                         return (
                             <Box key={row.id} bg="white" p={3} borderRadius="xl" borderWidth="1px" borderColor="gray.200">
                                 <VStack align="stretch" gap={3}>
@@ -356,7 +380,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
                                             </Button>
                                         )}
                                     </HStack>
-                                    {row.selectedVariant && (
+                                    {effectiveSelectedVariant && (
                                         <Badge
                                             alignSelf="flex-start"
                                             bg={availableStock > 0 ? 'gray.100' : 'red.50'}
@@ -376,7 +400,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
                                             value={row.itemName}
                                             onSelect={(opt) => handleItemSelect(row.id, opt)}
                                             disabled={isEditing}
-                                        onCommit={() => focusRowField(row.id, 'size')}
+                                            onCommit={() => focusRowField(row.id, 'size')}
                                             onFocus={() => handleFieldFocus(rowRefs.current[row.id]?.item ? { current: rowRefs.current[row.id].item } : null)}
                                             onBlur={handleFieldBlur}
                                             enterKeyHint="next"
@@ -389,18 +413,42 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
                                             options={[...new Set(row.variants.map((variant) => variant.size))].map((size, idx) => ({ id: idx, name: size }))}
                                             value={row.size}
                                             onSelect={(opt) => handleSizeSelect(row.id, opt)}
-                                            disabled={isEditing}
+                                            disabled={isEditing || !row.itemName}
                                             onCommit={() => focusRowField(row.id, 'quantity')}
-                                        onFocus={() => handleFieldFocus(rowRefs.current[row.id]?.size ? { current: rowRefs.current[row.id].size } : null)}
+                                            onFocus={() => handleFieldFocus(rowRefs.current[row.id]?.size ? { current: rowRefs.current[row.id].size } : null)}
                                             onBlur={handleFieldBlur}
                                             enterKeyHint="next"
                                             placeholder="Type to search size"
-                                            disabled={!row.itemName}
                                         />
                                     </Field>
-                                    {row.itemName && !row.loadingVariants && row.variants.length === 0 && (
-                                        <FormMessage tone="error">No stock available</FormMessage>
+                                    {row.size && !isEditing && hasMultiplePrices && (
+                                        <Field label="Purchase price">
+                                            <SelectDropdown
+                                                inputRef={setRowRef(row.id, 'variantPrice')}
+                                                options={sizePriceOptions.map((v) => ({ id: v.id, name: `${v.price}` }))}
+                                                value={effectiveSelectedVariant ? `${effectiveSelectedVariant.price}` : ''}
+                                                onSelect={(opt) => handlePriceSelect(row.id, sizePriceOptions.find((v) => v.id === opt.id))}
+                                                onCommit={() => focusRowField(row.id, 'quantity')}
+                                                enterKeyHint="next"
+                                                placeholder="Select purchase price"
+                                            />
+
+
+                                        </Field>
                                     )}
+
+                                    {row.size && (isEditing || hasSinglePrice) && effectiveSelectedVariant && (
+                                        <Field label="Purchase price">
+                                            <Input
+                                                value={`${effectiveSelectedVariant.price}`}
+                                                readOnly
+                                                disabled
+                                                {...fieldInputStyles}
+                                                _disabled={{ bg: 'gray.100', color: 'gray.600', cursor: 'not-allowed' }}
+                                            />
+                                        </Field>
+                                    )}
+
                                     <SimpleGrid columns={2} gap={4}>
                                         <Field label="Qty">
                                             <Input
@@ -419,7 +467,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
                                                 }}
                                                 enterKeyHint="next"
                                                 placeholder="0"
-                                                disabled={!row.selectedVariant}
+                                                disabled={!effectiveSelectedVariant}
                                                 {...fieldInputStyles}
                                                 _disabled={{ bg: 'gray.100', color: 'gray.500', cursor: 'not-allowed' }}
                                             />

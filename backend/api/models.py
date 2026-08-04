@@ -87,7 +87,9 @@ class Party(models.Model):
     class Meta:
         unique_together = ("company", "name")
         constraints = [
-            models.UniqueConstraint(Lower("name"), "company", name="party_company_name_ci_unique")
+            models.UniqueConstraint(
+                Lower("name"), "company", name="party_company_name_ci_unique"
+            )
         ]
 
     def save(self, *args, **kwargs):
@@ -106,7 +108,9 @@ class Item(models.Model):
     class Meta:
         unique_together = ("company", "name")
         constraints = [
-            models.UniqueConstraint(Lower("name"), "company", name="item_company_name_ci_unique")
+            models.UniqueConstraint(
+                Lower("name"), "company", name="item_company_name_ci_unique"
+            )
         ]
 
     def save(self, *args, **kwargs):
@@ -126,7 +130,9 @@ class Salesman(models.Model):
     class Meta:
         unique_together = ("company", "name")
         constraints = [
-            models.UniqueConstraint(Lower("name"), "company", name="salesman_company_name_ci_unique")
+            models.UniqueConstraint(
+                Lower("name"), "company", name="salesman_company_name_ci_unique"
+            )
         ]
 
     def save(self, *args, **kwargs):
@@ -140,20 +146,16 @@ class Salesman(models.Model):
 class ItemVariant(models.Model):
     item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name="variants")
     size = models.CharField(max_length=100)
+    price = models.DecimalField(max_digits=12, decimal_places=2)
 
     current_stock_qty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    avg_purchase_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    total_purchased_qty = models.DecimalField(
-        max_digits=12, decimal_places=2, default=0
-    )
-    total_purchased_value = models.DecimalField(
-        max_digits=14, decimal_places=2, default=0
-    )
 
     class Meta:
-        unique_together = ("item", "size")
+        unique_together = ("item", "size", "price")
         constraints = [
-            models.UniqueConstraint(Lower("size"), "item", name="variant_item_size_ci_unique")
+            models.UniqueConstraint(
+                Lower("size"), "item", "price", name="variant_item_size_price_ci_unique"
+            )
         ]
 
     def save(self, *args, **kwargs):
@@ -161,104 +163,51 @@ class ItemVariant(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.item.name} ({self.size})"
+        return f"{self.item.name} ({self.size} @ {self.price})"
 
-    def _recalculate_current_average_cost(self):
-        """Value only the stock that remains after frozen sale costs."""
-        historical_cogs = self.sales.aggregate(
-            total=Sum(F("cost_price_at_sale") * F("quantity"))
-        )["total"] or Decimal("0")
-        remaining_value = self.total_purchased_value - historical_cogs
-        self.avg_purchase_price = (
-            remaining_value / self.current_stock_qty
-            if self.current_stock_qty > 0
-            else Decimal("0")
-        )
-
-    def record_purchase(self, quantity, price):
-        """
-        Add a purchase to this variant: update stock and recalculate
-        the weighted-average purchase price.
-        """
-        self.total_purchased_qty += quantity
-        self.total_purchased_value += quantity * price
+    def record_purchase(self, quantity, price=None):
+        """Add purchased quantity to this price-locked variant."""
         self.current_stock_qty += quantity
-        self._recalculate_current_average_cost()
         self.save()
 
     def record_sale(self, quantity):
-        """
-        Deduct a sale from stock. Raises ValidationError if insufficient stock.
-        Caller is responsible for wrapping this with the Sale creation
-        in a transaction.
-        """
         if quantity > self.current_stock_qty:
             raise ValidationError("Cannot sell more than available stock.")
         self.current_stock_qty -= quantity
         self.save()
 
-    def adjust_purchase(self, old_quantity, old_price, new_quantity, new_price):
-        """
-        Apply the net effect of editing a purchase from
-        (old_quantity, old_price) to (new_quantity, new_price) in one step.
-        Validates against the FINAL resulting stock, not an intermediate one.
-        """
+    def adjust_purchase(self, old_quantity, new_quantity):
+        """Net-delta quantity edit on a purchase line staying on this same
+        (item, size, price) variant. Price/size/item changes are handled by
+        moving off this variant instead (see remove_purchase_effect)."""
         new_stock = self.current_stock_qty - old_quantity + new_quantity
         if new_stock < 0:
             sold_stock = old_quantity - self.current_stock_qty
             raise ValidationError(
                 f"Quantity cannot be less than the sold stock {sold_stock}. Adjust the related sales first."
             )
-
-        new_total_qty = self.total_purchased_qty - old_quantity + new_quantity
-        new_total_value = (
-            self.total_purchased_value
-            - (old_quantity * old_price)
-            + (new_quantity * new_price)
-        )
-
-        self.total_purchased_qty = new_total_qty
-        self.total_purchased_value = new_total_value
         self.current_stock_qty = new_stock
-        self._recalculate_current_average_cost()
         self.save()
 
     def adjust_sale(self, old_quantity, new_quantity):
-        """
-        Apply the net effect of editing a sale's quantity from
-        old_quantity to new_quantity in one step, validated against the
-        FINAL resulting stock.
-        """
         new_stock = self.current_stock_qty + old_quantity - new_quantity
         if new_stock < 0:
             raise ValidationError("Cannot sell more than available stock.")
         self.current_stock_qty = new_stock
         self.save()
 
-    def remove_purchase_effect(self, quantity, price):
-        """
-        Undo the stock/avg-price effect of one purchase. Used when a
-        purchase's item/size changes on edit (moving off this variant),
-        and will be reused by a future delete-purchase feature.
-        """
+    def remove_purchase_effect(self, quantity, price=None):
+        """Undo the stock effect of one purchase line. Used when a purchase
+        line's item/size/price changes on edit (moving off this variant)."""
         new_quantity = self.current_stock_qty - quantity
-
         if new_quantity < 0:
             raise ValidationError(
                 f"This purchase has already {abs(new_quantity)} sold stock. Adjust the related sales first."
             )
-        self.total_purchased_qty -= quantity
-        self.total_purchased_value -= quantity * price
         self.current_stock_qty -= quantity
-        self._recalculate_current_average_cost()
         self.save()
 
     def remove_sale_effect(self, quantity):
-        """
-        Undo the stock effect of one sale. Used when a sale's item/size
-        changes on edit (moving off this variant), and will be reused by
-        a future delete-sale feature. Always safe (stock only increases).
-        """
         self.current_stock_qty += quantity
         self.save()
 
@@ -269,11 +218,7 @@ class ItemVariant(models.Model):
         sales_qs = self.sales.all()
         if exclude_sale_id:
             sales_qs = sales_qs.exclude(pk=exclude_sale_id)
-        return (
-            self.total_purchased_qty <= 0
-            and not purchases_qs.exists()
-            and not sales_qs.exists()
-        )
+        return not purchases_qs.exists() and not sales_qs.exists()
 
 
 class Purchase(models.Model):
@@ -315,9 +260,7 @@ class PurchaseItem(models.Model):
 
 
 class Sale(models.Model):
-    company = models.ForeignKey(
-        Company, on_delete=models.CASCADE, related_name="sales"
-    )
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="sales")
     salesman = models.ForeignKey(
         Salesman, on_delete=models.SET_NULL, null=True, related_name="sales"
     )
@@ -348,7 +291,7 @@ class SaleItem(models.Model):
     def save(self, *args, **kwargs):
         is_new = self._state.adding
         if is_new:
-            self.cost_price_at_sale = self.variant.avg_purchase_price
+            self.cost_price_at_sale = self.variant.price
             self.variant.record_sale(self.quantity)
         super().save(*args, **kwargs)
 
