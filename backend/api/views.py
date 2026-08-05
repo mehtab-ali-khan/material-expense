@@ -2,13 +2,14 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 
 from .models import (
     Company,
     CompanyToken,
     Item,
     Party,
+    PurchaseItem,
     Quotation,
     Salesman,
     ItemVariant,
@@ -146,6 +147,16 @@ class ItemVariantListView(generics.ListAPIView):
         qs = ItemVariant.objects.filter(item__company=self.request.user)
         if item_id:
             qs = qs.filter(item_id=item_id)
+
+        qs = qs.prefetch_related(
+            Prefetch(
+                "purchases",
+                queryset=PurchaseItem.objects.select_related(
+                    "purchase__salesman"
+                ).order_by("-purchase__date", "-purchase__id"),
+                to_attr="recent_purchases",
+            )
+        )
         return qs.order_by("size")
 
 

@@ -76,10 +76,25 @@ class PartySerializer(serializers.ModelSerializer):
 
 class ItemVariantSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(source="item.name", read_only=True)
+    last_purchase_salesman = serializers.SerializerMethodField()
 
     class Meta:
         model = ItemVariant
-        fields = ["id", "item", "item_name", "size", "price", "current_stock_qty"]
+        fields = [
+            "id",
+            "item",
+            "item_name",
+            "size",
+            "price",
+            "current_stock_qty",
+            "last_purchase_salesman",
+        ]
+
+    def get_last_purchase_salesman(self, obj):
+        latest = next(iter(obj.recent_purchases), None)
+        if latest and latest.purchase.salesman:
+            return latest.purchase.salesman.name
+        return None
 
 
 class PurchaseLineSerializer(serializers.ModelSerializer):

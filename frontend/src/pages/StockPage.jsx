@@ -90,7 +90,7 @@ function StockCard({ item }) {
                         {item.item_name}
                     </Text>
                     <Text fontSize="12px" color="gray.500" lineHeight="1.3">
-                        {item.size}
+                        {item.size} · Price {formatNumber(item.price)}
                     </Text>
                 </Box>
                 <Text color="black" fontSize="17px" fontWeight="bold" lineHeight="1.25" whiteSpace="nowrap" flexShrink={0}>
@@ -98,9 +98,11 @@ function StockCard({ item }) {
                 </Text>
             </HStack>
 
-            <Text mt={1.5} fontSize="12px" color="gray.600" lineHeight="1.35">
-                Price {formatNumber(item.price)}
-            </Text>
+            {item.last_purchase_salesman && (
+                <Text mt={1.5} fontSize="12px" color="gray.600" lineHeight="1.35">
+                    Salesman: {item.last_purchase_salesman}
+                </Text>
+            )}
         </Box>
     )
 }
