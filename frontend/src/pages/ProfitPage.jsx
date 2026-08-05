@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Box, Heading, Text, VStack, HStack } from '@chakra-ui/react'
 import { getSales } from '../api/sales'
+import { getSalesmen } from '../api/salesmen'
 import AppLayout from '../components/AppLayout'
 import PageLoader from '../components/PageLoader'
 import ToastMessage from '../components/ToastMessage'
+import FilterDropdown from '../components/FilterDropdown'
 
 const formatDisplayDate = (date) => {
     if (!date) return ''
@@ -20,25 +22,34 @@ const formatNumber = (value) => {
 
 function ProfitPage() {
     const [sales, setSales] = useState([])
+    const [salesmen, setSalesmen] = useState([])
+    const [salesmanFilter, setSalesmanFilter] = useState('')
     const [loading, setLoading] = useState(true)
     const [toast, setToast] = useState('')
     const navigate = useNavigate()
 
-    useEffect(() => {
-        loadSales()
-    }, [])
-
-    const loadSales = async () => {
+    const loadSales = useCallback(async () => {
         setLoading(true)
         try {
-            const res = await getSales()
-            setSales(res.data)
+            const filters = {}
+            if (salesmanFilter) filters.salesman = salesmanFilter
+
+            const [salesmenRes, salesRes] = await Promise.all([
+                getSalesmen(),
+                getSales(filters),
+            ])
+            setSalesmen(salesmenRes.data)
+            setSales(salesRes.data)
         } catch {
             setToast('Could not load data')
         } finally {
             setLoading(false)
         }
-    }
+    }, [salesmanFilter])
+
+    useEffect(() => {
+        loadSales()
+    }, [loadSales])
 
     const grandTotal = sales.reduce((sum, sale) => sum + Number(sale.profit), 0)
 
@@ -54,6 +65,16 @@ function ProfitPage() {
                         Profit
                     </Heading>
                 </Box>
+
+                <HStack mb={3} gap={2} align="center" flexWrap="wrap">
+                    <FilterDropdown
+                        options={salesmen}
+                        value={salesmanFilter}
+                        onChange={setSalesmanFilter}
+                        placeholder="Salesman"
+                        label="Salesman"
+                    />
+                </HStack>
 
                 <Box
                     mb={3}

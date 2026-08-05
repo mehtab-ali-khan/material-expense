@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Box, Heading, Text, VStack, Button, HStack } from '@chakra-ui/react'
 import { getItems } from '../api/items'
 import { getSalesmen } from '../api/salesmen'
@@ -12,6 +12,7 @@ import { PlusIcon, XIcon } from '../components/Icons'
 import PageLoader from '../components/PageLoader'
 import ToastMessage from '../components/ToastMessage'
 import DateFilterBar from '../components/DateFilterBar'
+import FilterDropdown from '../components/FilterDropdown'
 
 
 const formatDisplayDate = (date) => {
@@ -38,6 +39,7 @@ function PurchasePage() {
     const [toast, setToast] = useState('')
     const [search, setSearch] = useState('')
     const [searchInput, setSearchInput] = useState('')
+    const [salesmanFilter, setSalesmanFilter] = useState('')
 
     useEffect(() => {
         const timer = setTimeout(() => setSearch(searchInput), 350)
@@ -46,12 +48,13 @@ function PurchasePage() {
 
     const [dateFilter, setDateFilter] = useState()
 
-    const loadAll = async () => {
+    const loadAll = useCallback(async () => {
         setLoading(true)
         try {
             const filters = {}
             if (dateFilter) filters.date = dateFilter
             if (search.trim()) filters.search = search.trim()
+            if (salesmanFilter) filters.salesman = salesmanFilter
 
             const [itemsRes, salesmenRes, partiesRes, variantsRes, purchasesRes] = await Promise.all([
                 getItems(),
@@ -75,11 +78,11 @@ function PurchasePage() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [dateFilter, search, salesmanFilter])
 
     useEffect(() => {
         loadAll()
-    }, [dateFilter, search])
+    }, [loadAll])
 
     const handleSaved = () => {
         setShowForm(false)
@@ -140,9 +143,18 @@ function PurchasePage() {
                 </Box>
 
                 {!showForm && (
-                    <HStack mb={3} gap={2} align="center">
+                    <HStack mb={3} gap={2} align="center" flexWrap="wrap">
                         <DateFilterBar value={dateFilter} onChange={setDateFilter} />
-                        <SearchBar value={searchInput} onChange={setSearchInput} placeholder="Search item, company or contact" />
+                        <FilterDropdown
+                            options={salesmen}
+                            value={salesmanFilter}
+                            onChange={setSalesmanFilter}
+                            placeholder="Salesman"
+                            label="Salesman"
+                        />
+                        <Box flex={{ base: '1 1 100%', sm: '1 1 220px' }} minW={{ base: '100%', sm: '220px' }}>
+                            <SearchBar value={searchInput} onChange={setSearchInput} placeholder="Search item, company or contact" />
+                        </Box>
                     </HStack>
                 )}
 

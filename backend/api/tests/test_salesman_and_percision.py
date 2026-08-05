@@ -95,6 +95,39 @@ class TestSalesmanSharedAcrossPurchaseAndSale:
         )
         assert Salesman.objects.filter(name="Common Name").count() == 2
 
+    def test_purchase_list_filters_by_salesman(self, client_a):
+        client_a.post("/api/purchases/", purchase_payload(salesman_name="Ali Raza"))
+        client_a.post(
+            "/api/purchases/",
+            purchase_payload(item_name="Cement", salesman_name="Zara Ahmed"),
+        )
+        salesman = Salesman.objects.get(name="Ali Raza")
+
+        res = client_a.get("/api/purchases/", {"salesman": salesman.id})
+
+        assert res.status_code == 200
+        assert len(res.data) == 1
+        assert res.data[0]["salesman_name"] == "Ali Raza"
+
+    def test_sale_list_filters_by_salesman(self, client_a):
+        client_a.post("/api/purchases/", purchase_payload(quantity="10"))
+        variant = ItemVariant.objects.get(item__name="Steel Rod")
+        client_a.post(
+            "/api/sales/",
+            sale_payload(variant.id, quantity="2", salesman_name="Ali Raza"),
+        )
+        client_a.post(
+            "/api/sales/",
+            sale_payload(variant.id, quantity="3", salesman_name="Zara Ahmed"),
+        )
+        salesman = Salesman.objects.get(name="Ali Raza")
+
+        res = client_a.get("/api/sales/", {"salesman": salesman.id})
+
+        assert res.status_code == 200
+        assert len(res.data) == 1
+        assert res.data[0]["salesman_name"] == "Ali Raza"
+
 
 class TestDecimalPrecision:
     def test_weighted_average_with_mixed_prices_computes_exact_two_decimal_average(

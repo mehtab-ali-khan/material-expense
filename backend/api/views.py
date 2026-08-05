@@ -170,6 +170,7 @@ class PurchaseListCreateView(generics.ListCreateAPIView):
         date_from = self.request.query_params.get("date_from")
         date_to = self.request.query_params.get("date_to")
         search = self.request.query_params.get("search")
+        salesman = self.request.query_params.get("salesman")
 
         if date:
             qs = qs.filter(date=date)
@@ -186,6 +187,13 @@ class PurchaseListCreateView(generics.ListCreateAPIView):
                 | Q(party__name__icontains=search)
                 | Q(party__contact__icontains=search)
             ).distinct()
+
+        if salesman:
+            salesman = salesman.strip()
+            if salesman.isdigit():
+                qs = qs.filter(salesman_id=salesman)
+            else:
+                qs = qs.filter(salesman__name__iexact=salesman)
 
         return qs
 
@@ -207,6 +215,7 @@ class SaleListCreateView(generics.ListCreateAPIView):
         date_from = self.request.query_params.get("date_from")
         date_to = self.request.query_params.get("date_to")
         search = self.request.query_params.get("search")
+        salesman = self.request.query_params.get("salesman")
 
         if date:
             qs = qs.filter(date=date)
@@ -223,6 +232,13 @@ class SaleListCreateView(generics.ListCreateAPIView):
                 | Q(party__name__icontains=search)
                 | Q(party__contact__icontains=search)
             ).distinct()
+
+        if salesman:
+            salesman = salesman.strip()
+            if salesman.isdigit():
+                qs = qs.filter(salesman_id=salesman)
+            else:
+                qs = qs.filter(salesman__name__iexact=salesman)
 
         return qs
 

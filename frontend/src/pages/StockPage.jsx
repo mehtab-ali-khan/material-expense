@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Box, Heading, Text, VStack, HStack } from '@chakra-ui/react'
 import { getVariants } from '../api/variants'
+import { getSalesmen } from '../api/salesmen'
 import AppLayout from '../components/AppLayout'
 import PageLoader from '../components/PageLoader'
 import ToastMessage from '../components/ToastMessage'
+import FilterDropdown from '../components/FilterDropdown'
 
 const formatNumber = (value) => {
     const number = Number(value)
@@ -13,24 +15,37 @@ const formatNumber = (value) => {
 
 function StockPage() {
     const [stock, setStock] = useState([])
+    const [salesmen, setSalesmen] = useState([])
+    const [salesmanFilter, setSalesmanFilter] = useState('')
     const [loading, setLoading] = useState(true)
     const [toast, setToast] = useState('')
 
-    useEffect(() => {
-        loadStock()
-    }, [])
-
-    const loadStock = async () => {
+    const loadStock = useCallback(async () => {
         setLoading(true)
         try {
-            const res = await getVariants()
-            setStock(res.data.filter((item) => Number(item.current_stock_qty) > 0))
+            const [salesmenRes, variantsRes] = await Promise.all([
+                getSalesmen(),
+                getVariants(),
+            ])
+            setSalesmen(salesmenRes.data)
+
+            const selectedSalesman = salesmenRes.data.find((salesman) => String(salesman.id) === String(salesmanFilter))
+            setStock(variantsRes.data.filter((item) => {
+                const hasStock = Number(item.current_stock_qty) > 0
+                if (!hasStock) return false
+                if (!selectedSalesman) return true
+                return item.last_purchase_salesman === selectedSalesman.name
+            }))
         } catch {
             setToast('Could not load data')
         } finally {
             setLoading(false)
         }
-    }
+    }, [salesmanFilter])
+
+    useEffect(() => {
+        loadStock()
+    }, [loadStock])
 
     return (
         <AppLayout>
@@ -44,6 +59,16 @@ function StockPage() {
                         Stock
                     </Heading>
                 </Box>
+
+                <HStack mb={3} gap={2} align="center" flexWrap="wrap">
+                    <FilterDropdown
+                        options={salesmen}
+                        value={salesmanFilter}
+                        onChange={setSalesmanFilter}
+                        placeholder="Salesman"
+                        label="Salesman"
+                    />
+                </HStack>
 
                 {loading ? (
                     <PageLoader />
