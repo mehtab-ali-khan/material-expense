@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Box, Heading, Text, VStack, HStack } from '@chakra-ui/react'
 import { getSales } from '../api/sales'
 import AppLayout from '../components/AppLayout'
@@ -21,6 +22,7 @@ function ProfitPage() {
     const [sales, setSales] = useState([])
     const [loading, setLoading] = useState(true)
     const [toast, setToast] = useState('')
+    const navigate = useNavigate()
 
     useEffect(() => {
         loadSales()
@@ -89,7 +91,7 @@ function ProfitPage() {
                 ) : (
                     <VStack gap={2} align="stretch">
                         {[...sales].sort((a, b) => new Date(b.date) - new Date(a.date) || b.id - a.id).map((sale) => (
-                            <ProfitCard key={sale.id} sale={sale} />
+                            <ProfitCard key={sale.id} sale={sale} onClick={() => navigate(`/profit/${sale.id}`)} />
                         ))}
                     </VStack>
                 )}
@@ -99,11 +101,21 @@ function ProfitPage() {
     )
 }
 
-function ProfitCard({ sale }) {
-    const items = sale.items || []
+function ProfitCard({ sale, onClick }) {
+    const itemCount = sale.items?.length ?? 0
 
     return (
-        <Box bg="white" border="1px solid" borderColor="gray.100" borderRadius="xl" px={3} py={2.5}>
+        <Box
+            bg="white"
+            border="1px solid"
+            borderColor="gray.100"
+            borderRadius="xl"
+            px={3}
+            py={2.5}
+            onClick={onClick}
+            cursor="pointer"
+            _active={{ bg: 'gray.50' }}
+        >
             <HStack justify="space-between" align="start" gap={3}>
                 <Box minW={0}>
                     <Text
@@ -118,7 +130,7 @@ function ProfitCard({ sale }) {
                         {sale.party_name || 'No company'}
                     </Text>
                     <Text fontSize="12px" color="gray.500" lineHeight="1.3">
-                        {formatDisplayDate(sale.date)} · {items.length} item{items.length === 1 ? '' : 's'}
+                        {formatDisplayDate(sale.date)} · {itemCount} item{itemCount === 1 ? '' : 's'}
                     </Text>
                 </Box>
                 <Text
@@ -133,33 +145,12 @@ function ProfitCard({ sale }) {
                 </Text>
             </HStack>
 
-            <VStack mt={3} gap={2} align="stretch">
-                {items.map((item) => (
-                    <Box key={item.id} bg="gray.50" borderRadius="lg" px={2.5} py={2}>
-                        <HStack justify="space-between" align="start" gap={2}>
-                            <Box minW={0}>
-                                <Text fontSize="14px" color="black" fontWeight="semibold" lineHeight="1.25">
-                                    {item.item_name}
-                                </Text>
-                                <Text fontSize="12px" color="gray.500" lineHeight="1.35">
-                                    {item.size} · {item.quantity} qty · sale {formatNumber(item.sale_price)} · cost {formatNumber(item.cost_price_at_sale)}
-                                </Text>
-                            </Box>
-                            <Text fontSize="14px" color="black" fontWeight="bold" whiteSpace="nowrap">
-                                {formatNumber(item.profit)}
-                            </Text>
-                        </HStack>
-                    </Box>
-                ))}
-            </VStack>
-
             {sale.salesman_name && (
-                <Text mt={2} fontSize="12px" color="gray.600" lineHeight="1.35">
+                <Text mt={1.5} fontSize="12px" color="gray.600" lineHeight="1.35">
                     Salesman: {sale.salesman_name}
                 </Text>
             )}
         </Box>
     )
 }
-
 export default ProfitPage
