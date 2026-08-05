@@ -24,7 +24,7 @@ function StockPage() {
         setLoading(true)
         try {
             const res = await getVariants()
-            setStock(res.data)
+            setStock(res.data.filter((item) => Number(item.current_stock_qty) > 0))
         } catch {
             setToast('Could not load data')
         } finally {
@@ -99,7 +99,7 @@ function StockCard({ item }) {
             </HStack>
 
             <Text mt={1.5} fontSize="12px" color="gray.600" lineHeight="1.35">
-                Price {formatNumber(item.avg_purchase_price)}
+                Price {formatNumber(item.price)}
             </Text>
         </Box>
     )
