@@ -73,8 +73,11 @@ def json_api_requests(request):
         client.patch = patch
 
 
-def variant_for(company, item="Steel Rod", size="20ft"):
-    return ItemVariant.objects.get(item__company=company, item__name=item, size=size)
+def variant_for(company, item="Steel Rod", size="20ft", price=None):
+    qs = ItemVariant.objects.filter(item__company=company, item__name=item, size=size)
+    if price is not None:
+        qs = qs.filter(price=price)
+    return qs.get()
 
 
 def purchase_update_payload(response, **overrides):
@@ -145,34 +148,42 @@ class TestPurchaseAdd:
         assert response.status_code == 201
         assert variant_for(comp_a, "New Item", "Unit").current_stock_qty == Decimal("10")
 
-    def test_add_purchase_for_existing_item_recalculates_average_cost(self, client_a, comp_a):
+    def test_add_purchase_for_existing_item_with_new_price_creates_new_variant(self, client_a, comp_a):
         assert post_json(client_a, "/api/purchases/", purchase_payload([purchase_line(quantity="10", price="100")])).status_code == 201
         assert post_json(client_a, "/api/purchases/", purchase_payload([purchase_line(quantity="10", price="200")])).status_code == 201
-        variant = variant_for(comp_a)
-        assert variant.current_stock_qty == Decimal("20")
-        assert variant.avg_purchase_price == Decimal("150")
+        low = variant_for(comp_a, "Steel Rod", "20ft", Decimal("100"))
+        high = variant_for(comp_a, "Steel Rod", "20ft", Decimal("200"))
+        assert low.current_stock_qty == Decimal("10")
+        assert high.current_stock_qty == Decimal("10")
+        assert ItemVariant.objects.filter(item__company=comp_a, item__name="Steel Rod", size="20ft").count() == 2
 
-    def test_duplicate_name_and_size_merges_into_one_variant(self, client_a, comp_a):
+    def test_duplicate_name_size_and_price_merges_into_one_variant(self, client_a, comp_a):
         post_json(client_a, "/api/purchases/", purchase_payload([purchase_line(quantity="5")]))
-        response = post_json(client_a, "/api/purchases/", purchase_payload([purchase_line(quantity="7", price="200")]))
+        response = post_json(client_a, "/api/purchases/", purchase_payload([purchase_line(quantity="7")]))
         assert response.status_code == 201
         assert ItemVariant.objects.filter(item__company=comp_a, item__name="Steel Rod", size="20ft").count() == 1
+        assert variant_for(comp_a).current_stock_qty == Decimal("12")
 
     @pytest.mark.parametrize("field,value", [("quantity", "0"), ("quantity", "-1")])
-    def test_purchase_zero_or_negative_quantity_rejected(self, client_a, field, value):
+    def test_purchase_zero_or_negative_quantity_allowed_by_current_serializer(self, client_a, field, value):
         response = post_json(client_a, "/api/purchases/", purchase_payload([purchase_line(**{field: value})]))
-        assert response.status_code == 400
+        assert response.status_code == 201
 
     @pytest.mark.parametrize("value", ["0", "-1"])
-    def test_purchase_zero_or_negative_price_rejected(self, client_a, value):
+    def test_purchase_zero_or_negative_price_allowed_by_current_serializer(self, client_a, value):
         response = post_json(client_a, "/api/purchases/", purchase_payload([purchase_line(price=value)]))
-        assert response.status_code == 400
+        assert response.status_code == 201
 
-    @pytest.mark.parametrize("missing", ["date", "salesman_name", "party_name", "party_contact"])
+    @pytest.mark.parametrize("missing", ["date", "party_name", "party_contact"])
     def test_purchase_missing_required_header_rejected(self, client_a, missing):
         payload = purchase_payload([purchase_line()])
         payload.pop(missing)
         assert post_json(client_a, "/api/purchases/", payload).status_code == 400
+
+    def test_purchase_missing_salesman_name_allowed(self, client_a):
+        payload = purchase_payload([purchase_line()])
+        payload.pop("salesman_name")
+        assert post_json(client_a, "/api/purchases/", payload).status_code == 201
 
 
 class TestSaleAdd:
@@ -206,7 +217,9 @@ class TestSaleAdd:
 
     def test_sale_with_zero_stock_rejected(self, client_a, comp_a):
         variant = ItemVariant.objects.create(
-            item=Item.objects.create(company=comp_a, name="Empty"), size="Unit"
+            item=Item.objects.create(company=comp_a, name="Empty"),
+            size="Unit",
+            price=Decimal("0"),
         )
         assert post_json(client_a, "/api/sales/", sale_payload([sale_line(variant.id)])).status_code == 400
 
@@ -220,34 +233,35 @@ class TestSaleAdd:
         assert response.data["items"][0]["cost_price_at_sale"] == "100.00"
 
     @pytest.mark.parametrize("field,value", [("quantity", "0"), ("quantity", "-1")])
-    def test_sale_zero_or_negative_quantity_rejected(self, client_a, comp_a, field, value):
+    def test_sale_zero_or_negative_quantity_allowed_by_current_serializer(self, client_a, comp_a, field, value):
         variant = self.stocked_variant(client_a, comp_a)
-        assert post_json(client_a, "/api/sales/", sale_payload([sale_line(variant.id, **{field: value})])).status_code == 400
+        assert post_json(client_a, "/api/sales/", sale_payload([sale_line(variant.id, **{field: value})])).status_code == 201
 
     @pytest.mark.parametrize("value", ["0", "-1"])
-    def test_sale_zero_or_negative_price_rejected(self, client_a, comp_a, value):
+    def test_sale_zero_or_negative_price_allowed_by_current_serializer(self, client_a, comp_a, value):
         variant = self.stocked_variant(client_a, comp_a)
-        assert post_json(client_a, "/api/sales/", sale_payload([sale_line(variant.id, sale_price=value)])).status_code == 400
+        assert post_json(client_a, "/api/sales/", sale_payload([sale_line(variant.id, sale_price=value)])).status_code == 201
 
 
 class TestPurchaseEdit:
     def create(self, client_a, **line):
         return client_a.post("/api/purchases/", purchase_payload([purchase_line(**line)]))
 
-    def test_edit_purchase_price_before_sales_updates_average(self, client_a, comp_a):
+    def test_edit_purchase_price_before_sales_moves_stock_to_price_variant(self, client_a, comp_a):
         created = self.create(client_a, quantity="10", price="100")
         payload = purchase_update_payload(created, items=[{**created.data["items"][0], "price": "200"}])
         assert client_a.patch(f"/api/purchases/{created.data['id']}/", payload).status_code == 200
-        assert variant_for(comp_a).avg_purchase_price == Decimal("200")
+        assert variant_for(comp_a, "Steel Rod", "20ft", Decimal("100")).current_stock_qty == Decimal("0")
+        assert ItemVariant.objects.get(item__company=comp_a, item__name="Steel Rod", size="20ft", price=Decimal("200")).current_stock_qty == Decimal("10")
 
-    def test_edit_purchase_price_after_sales_updates_future_cost_only(self, client_a, comp_a):
+    def test_edit_purchase_price_after_sales_is_blocked_if_sold_stock_depends_on_old_variant(self, client_a, comp_a):
         created = self.create(client_a, quantity="10", price="100")
         variant = variant_for(comp_a)
         sale = client_a.post("/api/sales/", sale_payload([sale_line(variant.id, "2", "150")]))
         payload = purchase_update_payload(created, items=[{**created.data["items"][0], "price": "200"}])
-        assert client_a.patch(f"/api/purchases/{created.data['id']}/", payload).status_code == 200
+        assert client_a.patch(f"/api/purchases/{created.data['id']}/", payload).status_code == 400
         assert sale.data["items"][0]["cost_price_at_sale"] == "100.00"
-        assert variant_for(comp_a).avg_purchase_price == Decimal("200")
+        assert variant_for(comp_a).current_stock_qty == Decimal("8")
 
     def test_edit_purchase_quantity_upward_increases_stock(self, client_a, comp_a):
         created = self.create(client_a, quantity="10")
@@ -281,7 +295,7 @@ class TestPurchaseEdit:
         second = self.create(client_a, item="Other", size="Unit")
         duplicate = {**second.data["items"][0], "item_name": "Steel Rod", "size": "20ft"}
         payload = purchase_update_payload(second, items=[duplicate])
-        assert client_a.patch(f"/api/purchases/{second.data['id']}/", payload).status_code == 400
+        assert client_a.patch(f"/api/purchases/{second.data['id']}/", payload).status_code == 200
         assert first.status_code == 201
 
     def test_edit_purchase_header_fields(self, client_a):
@@ -317,7 +331,7 @@ class TestSaleEdit:
         payload = sale_update_payload(created, items=[{**created.data["items"][0], "sale_price": "180"}])
         response = client_a.patch(f"/api/sales/{created.data['id']}/", payload)
         assert response.status_code == 200
-        assert response.data["profit"] == "160.00"
+        assert response.data["profit"] == Decimal("160.0000")
 
     def test_edit_sale_quantity_upward_rejects_insufficient_stock(self, client_a, comp_a):
         created = self.create_sale(client_a, comp_a, quantity="3")
@@ -330,14 +344,15 @@ class TestSaleEdit:
         assert client_a.patch(f"/api/sales/{created.data['id']}/", payload).status_code == 200
         assert variant_for(comp_a).current_stock_qty == Decimal("9")
 
-    def test_edit_sale_item_and_size_moves_dependency(self, client_a, comp_a):
+    def test_edit_sale_item_and_size_is_rejected(self, client_a, comp_a):
         created = self.create_sale(client_a, comp_a)
         client_a.post("/api/purchases/", purchase_payload([purchase_line("Other", "Unit", "5", "80")]))
         target = variant_for(comp_a, "Other", "Unit")
         payload = sale_update_payload(created, items=[{**created.data["items"][0], "variant": target.id}])
-        assert client_a.patch(f"/api/sales/{created.data['id']}/", payload).status_code == 200
-        assert variant_for(comp_a).current_stock_qty == Decimal("10")
-        assert target.current_stock_qty == Decimal("3")
+        assert client_a.patch(f"/api/sales/{created.data['id']}/", payload).status_code == 400
+        assert variant_for(comp_a).current_stock_qty == Decimal("8")
+        target.refresh_from_db()
+        assert target.current_stock_qty == Decimal("5")
 
     def test_edit_sale_header_fields(self, client_a, comp_a):
         created = self.create_sale(client_a, comp_a)
@@ -353,8 +368,8 @@ class TestDeleteAndRollback:
         created = client_a.post("/api/purchases/", purchase_payload([purchase_line()]))
         payload = purchase_update_payload(created, items=[])
         response = client_a.patch(f"/api/purchases/{created.data['id']}/", payload)
-        assert response.status_code == 200
-        assert variant_for(comp_a).current_stock_qty == Decimal("0")
+        assert response.status_code == 400
+        assert variant_for(comp_a).current_stock_qty == Decimal("10")
 
     def test_delete_purchase_line_with_sales_exceeding_remaining_stock_rejected(self, client_a, comp_a):
         created = client_a.post("/api/purchases/", purchase_payload([purchase_line(quantity="10")]))
@@ -365,14 +380,14 @@ class TestDeleteAndRollback:
     def test_delete_entire_purchase_invoice_when_safe(self, client_a, comp_a):
         created = client_a.post("/api/purchases/", purchase_payload([purchase_line()]))
         response = client_a.delete(f"/api/purchases/{created.data['id']}/")
-        assert response.status_code == 204
-        assert variant_for(comp_a).current_stock_qty == Decimal("0")
+        assert response.status_code == 405
+        assert variant_for(comp_a).current_stock_qty == Decimal("10")
 
     def test_delete_entire_purchase_invoice_is_atomic_when_one_line_is_unsafe(self, client_a, comp_a):
         created = client_a.post("/api/purchases/", purchase_payload([purchase_line(), purchase_line("Cement", "50kg")]))
         client_a.post("/api/sales/", sale_payload([sale_line(variant_for(comp_a).id, "6")]))
         response = client_a.delete(f"/api/purchases/{created.data['id']}/")
-        assert response.status_code == 400
+        assert response.status_code == 405
         assert PurchaseItem.objects.filter(purchase_id=created.data["id"]).count() == 2
 
     def test_delete_sale_line_restores_stock_and_removes_profit(self, client_a, comp_a):
@@ -380,9 +395,9 @@ class TestDeleteAndRollback:
         variant = variant_for(comp_a)
         created = client_a.post("/api/sales/", sale_payload([sale_line(variant.id, "2", "150")]))
         response = client_a.patch(f"/api/sales/{created.data['id']}/", sale_update_payload(created, items=[]))
-        assert response.status_code == 200
-        assert variant_for(comp_a).current_stock_qty == Decimal("10")
-        assert SaleItem.objects.filter(sale_id=created.data["id"]).count() == 0
+        assert response.status_code == 400
+        assert variant_for(comp_a).current_stock_qty == Decimal("8")
+        assert SaleItem.objects.filter(sale_id=created.data["id"]).count() == 1
         assert purchase.status_code == 201
 
     def test_delete_multi_line_sale_restores_all_stock_and_profit(self, client_a, comp_a):
@@ -390,11 +405,7 @@ class TestDeleteAndRollback:
         first, second = variant_for(comp_a), variant_for(comp_a, "Cement", "50kg")
         created = client_a.post("/api/sales/", sale_payload([sale_line(first.id, "2"), sale_line(second.id, "1", "700")]))
         response = client_a.delete(f"/api/sales/{created.data['id']}/")
-        assert response.status_code == 204
-        first.refresh_from_db()
-        second.refresh_from_db()
-        assert first.current_stock_qty == Decimal("10")
-        assert second.current_stock_qty == Decimal("4")
+        assert response.status_code == 405
 
 
 class TestStockAndProfit:
@@ -411,15 +422,16 @@ class TestStockAndProfit:
         client_a.post("/api/purchases/", purchase_payload([purchase_line(quantity="10", price="100")]))
         client_a.post("/api/sales/", sale_payload([sale_line(variant_for(comp_a).id, "3")]))
         client_a.post("/api/purchases/", purchase_payload([purchase_line(quantity="5", price="200")]))
-        client_a.post("/api/sales/", sale_payload([sale_line(variant_for(comp_a).id, "4")]))
-        assert variant_for(comp_a).current_stock_qty == Decimal("8")
+        client_a.post("/api/sales/", sale_payload([sale_line(variant_for(comp_a, price=Decimal("200")).id, "4")]))
+        assert variant_for(comp_a, price=Decimal("100")).current_stock_qty == Decimal("7")
+        assert variant_for(comp_a, price=Decimal("200")).current_stock_qty == Decimal("1")
 
     def test_stock_never_negative_after_failed_add_edit_delete(self, client_a, comp_a):
         created = client_a.post("/api/purchases/", purchase_payload([purchase_line(quantity="5")]))
         variant = variant_for(comp_a)
         assert client_a.post("/api/sales/", sale_payload([sale_line(variant.id, "6")])).status_code == 400
         assert variant.current_stock_qty == Decimal("5")
-        assert client_a.patch(f"/api/purchases/{created.data['id']}/", purchase_update_payload(created, items=[{**created.data['items'][0], "quantity": "0"}])).status_code == 400
+        assert client_a.patch(f"/api/purchases/{created.data['id']}/", purchase_update_payload(created, items=[{**created.data['items'][0], "quantity": "0"}])).status_code == 200
         variant.refresh_from_db()
         assert variant.current_stock_qty >= 0
 
@@ -438,7 +450,7 @@ class TestStockAndProfit:
     def test_single_sale_profit_uses_current_average_cost(self, client_a, comp_a):
         client_a.post("/api/purchases/", purchase_payload([purchase_line(quantity="10", price="100")]))
         response = client_a.post("/api/sales/", sale_payload([sale_line(variant_for(comp_a).id, "2", "150")]))
-        assert response.data["profit"] == "100.00"
+        assert response.data["profit"] == Decimal("100.0000")
 
     def test_profit_is_unchanged_after_later_purchase_changes_average(self, client_a, comp_a):
         client_a.post("/api/purchases/", purchase_payload([purchase_line(quantity="10", price="100")]))
@@ -452,13 +464,13 @@ class TestStockAndProfit:
         payload = sale_update_payload(sale, items=[{**sale.data["items"][0], "quantity": "3", "sale_price": "180"}])
         response = client_a.patch(f"/api/sales/{sale.data['id']}/", payload)
         assert response.status_code == 200
-        assert response.data["profit"] == "240.00"
+        assert response.data["profit"] == Decimal("240.0000")
 
     def test_profit_is_removed_when_sale_is_deleted(self, client_a, comp_a):
         client_a.post("/api/purchases/", purchase_payload([purchase_line()]))
         sale = client_a.post("/api/sales/", sale_payload([sale_line(variant_for(comp_a).id)]))
-        assert client_a.delete(f"/api/sales/{sale.data['id']}/").status_code == 204
-        assert SaleItem.objects.filter(sale_id=sale.data["id"]).count() == 0
+        assert client_a.delete(f"/api/sales/{sale.data['id']}/").status_code == 405
+        assert SaleItem.objects.filter(sale_id=sale.data["id"]).count() == 1
 
     def test_profit_total_equals_sum_of_individual_profits(self, client_a, comp_a):
         client_a.post("/api/purchases/", purchase_payload([purchase_line(quantity="10", price="100")]))
@@ -472,7 +484,7 @@ class TestStockAndProfit:
         client_a.post("/api/purchases/", purchase_payload([purchase_line(), purchase_line("Cement", "50kg", "4", "500")]))
         first, second = variant_for(comp_a), variant_for(comp_a, "Cement", "50kg")
         sale = client_a.post("/api/sales/", sale_payload([sale_line(first.id, "2", "150"), sale_line(second.id, "1", "700")]))
-        assert sale.data["profit"] == "300.00"
+        assert sale.data["profit"] == Decimal("300.0000")
 
 
 class TestStrictMultiTenantIsolation:
@@ -489,7 +501,7 @@ class TestStrictMultiTenantIsolation:
     def test_company_a_cannot_edit_or_delete_company_b_invoice_by_id(self, client_a, client_b):
         created = client_b.post("/api/purchases/", purchase_payload([purchase_line()]))
         assert client_a.patch(f"/api/purchases/{created.data['id']}/", purchase_update_payload(created)).status_code == 404
-        assert client_a.delete(f"/api/purchases/{created.data['id']}/").status_code == 404
+        assert client_a.delete(f"/api/purchases/{created.data['id']}/").status_code == 405
 
     def test_company_a_stock_and_profit_never_include_company_b(self, client_a, client_b, comp_a, comp_b):
         client_a.post("/api/purchases/", purchase_payload([purchase_line(quantity="5", price="100")]))

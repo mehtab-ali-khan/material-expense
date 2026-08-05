@@ -24,6 +24,19 @@ def make_company(db):
         token = CompanyToken.objects.create(company=company)
         client = APIClient()
         client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+        original_post = client.post
+        original_patch = client.patch
+
+        def post(*args, _original=original_post, **kwargs):
+            kwargs.setdefault("format", "json")
+            return _original(*args, **kwargs)
+
+        def patch(*args, _original=original_patch, **kwargs):
+            kwargs.setdefault("format", "json")
+            return _original(*args, **kwargs)
+
+        client.post = post
+        client.patch = patch
         return company, token, client
 
     return _make
@@ -72,10 +85,14 @@ def make_purchase_payload():
         party_contact="923001110000",
     ):
         return {
-            "item_name": item_name,
-            "size": size,
-            "quantity": quantity,
-            "price": price,
+            "items": [
+                {
+                    "item_name": item_name,
+                    "size": size,
+                    "quantity": quantity,
+                    "price": price,
+                }
+            ],
             "date": date,
             "salesman_name": salesman_name,
             "party_name": party_name,
@@ -97,9 +114,13 @@ def make_sale_payload():
         party_contact="923002220000",
     ):
         return {
-            "variant": variant_id,
-            "quantity": quantity,
-            "sale_price": sale_price,
+            "items": [
+                {
+                    "variant": variant_id,
+                    "quantity": quantity,
+                    "sale_price": sale_price,
+                }
+            ],
             "date": date,
             "salesman_name": salesman_name,
             "party_name": party_name,
@@ -113,9 +134,11 @@ def make_sale_payload():
 def variant_factory(db):
     """Directly create an Item + ItemVariant for a given company (bypassing the API)."""
 
-    def _make(company, name="Steel Rod", size="20ft"):
+    def _make(company, name="Steel Rod", size="20ft", price="0"):
         item, _ = Item.objects.get_or_create(company=company, name=name)
-        variant, _ = ItemVariant.objects.get_or_create(item=item, size=size)
+        variant, _ = ItemVariant.objects.get_or_create(
+            item=item, size=size, price=price
+        )
         return variant
 
     return _make

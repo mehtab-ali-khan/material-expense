@@ -5,7 +5,7 @@ Multi-tenancy isolation tests.
 import pytest
 from decimal import Decimal
 
-from api.models import Item, ItemVariant, Sale
+from api.models import Item, ItemVariant, SaleItem
 
 pytestmark = pytest.mark.django_db
 
@@ -73,7 +73,7 @@ class TestVariantAndStockIsolation:
         assert res.status_code == 400
         variant_b.refresh_from_db()
         assert variant_b.current_stock_qty == Decimal("50")
-        assert Sale.objects.filter(variant=variant_b).count() == 0
+        assert SaleItem.objects.filter(variant=variant_b).count() == 0
 
     def test_company_cannot_see_variants_by_filtering_other_companys_item_id(
         self, client_a, variant_factory, comp_b
@@ -95,8 +95,8 @@ class TestPurchaseSaleIsolation:
 
         assert len(res_a.data) == 1
         assert len(res_b.data) == 1
-        assert res_a.data[0]["item_name"] == "Bricks"
-        assert res_b.data[0]["item_name"] == "Sand"
+        assert res_a.data[0]["items"][0]["item_name"] == "Bricks"
+        assert res_b.data[0]["items"][0]["item_name"] == "Sand"
 
     def test_sales_scoped_per_company(
         self, client_a, client_b, make_purchase_payload, make_sale_payload

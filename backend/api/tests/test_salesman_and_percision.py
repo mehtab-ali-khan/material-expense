@@ -1,42 +1,56 @@
 """
 Two focused areas:
 1. Salesman shared per-company table across Purchase and Sale.
-2. Decimal precision on weighted-average price and profit.
+2. Decimal precision on price-specific variants and profit.
 """
 
 import pytest
 from decimal import Decimal
 
-from api.models import ItemVariant, Salesman, Purchase, Sale
+from api.models import ItemVariant, Salesman, Purchase, Sale, SaleItem
 
 pytestmark = pytest.mark.django_db
 
 
 def purchase_payload(**overrides):
     payload = {
-        "item_name": "Steel Rod",
-        "size": "20ft",
-        "quantity": "10",
-        "price": "100",
+        "items": [
+            {
+                "item_name": "Steel Rod",
+                "size": "20ft",
+                "quantity": "10",
+                "price": "100",
+            }
+        ],
         "date": "2026-01-01",
         "salesman_name": "",
         "party_name": "Default Supplier",
         "party_contact": "923001110000",
     }
+    for key in ("item_name", "size", "quantity", "price"):
+        if key in overrides:
+            payload["items"][0][key] = overrides.pop(key)
     payload.update(overrides)
     return payload
 
 
 def sale_payload(variant_id, **overrides):
     payload = {
-        "variant": variant_id,
-        "quantity": "1",
-        "sale_price": "100",
+        "items": [
+            {
+                "variant": variant_id,
+                "quantity": "1",
+                "sale_price": "100",
+            }
+        ],
         "date": "2026-01-02",
         "salesman_name": "",
         "party_name": "Default Buyer",
         "party_contact": "923002220000",
     }
+    for key in ("quantity", "sale_price"):
+        if key in overrides:
+            payload["items"][0][key] = overrides.pop(key)
     payload.update(overrides)
     return payload
 
@@ -44,7 +58,7 @@ def sale_payload(variant_id, **overrides):
 class TestSalesmanSharedAcrossPurchaseAndSale:
     def test_salesman_created_on_purchase_is_reused_on_sale(self, client_a):
         client_a.post("/api/purchases/", purchase_payload(salesman_name="Ali Raza"))
-        variant = ItemVariant.objects.get(item__name="Steel Rod")
+        variant = ItemVariant.objects.get(item__name="Steel Rod", price=Decimal("100"))
 
         client_a.post(
             "/api/sales/",
@@ -60,7 +74,7 @@ class TestSalesmanSharedAcrossPurchaseAndSale:
 
     def test_salesman_created_on_sale_is_reused_on_purchase(self, client_a):
         client_a.post("/api/purchases/", purchase_payload())
-        variant = ItemVariant.objects.get(item__name="Steel Rod")
+        variant = ItemVariant.objects.get(item__name="Steel Rod", price=Decimal("100"))
 
         client_a.post(
             "/api/sales/",
@@ -111,7 +125,7 @@ class TestSalesmanSharedAcrossPurchaseAndSale:
 
     def test_sale_list_filters_by_salesman(self, client_a):
         client_a.post("/api/purchases/", purchase_payload(quantity="10"))
-        variant = ItemVariant.objects.get(item__name="Steel Rod")
+        variant = ItemVariant.objects.get(item__name="Steel Rod", price=Decimal("100"))
         client_a.post(
             "/api/sales/",
             sale_payload(variant.id, quantity="2", salesman_name="Ali Raza"),
@@ -130,41 +144,35 @@ class TestSalesmanSharedAcrossPurchaseAndSale:
 
 
 class TestDecimalPrecision:
-    def test_weighted_average_with_mixed_prices_computes_exact_two_decimal_average(
+    def test_mixed_prices_create_exact_price_specific_variants(
         self, client_a
     ):
         client_a.post("/api/purchases/", purchase_payload(quantity="3", price="10"))
         client_a.post("/api/purchases/", purchase_payload(quantity="7", price="11"))
-        variant = ItemVariant.objects.get(item__name="Steel Rod")
-        assert variant.total_purchased_qty == Decimal("10")
-        assert variant.total_purchased_value == Decimal("107")
-        assert variant.avg_purchase_price == Decimal("10.70")
+        low = ItemVariant.objects.get(item__name="Steel Rod", price=Decimal("10"))
+        high = ItemVariant.objects.get(item__name="Steel Rod", price=Decimal("11"))
+        assert low.current_stock_qty == Decimal("3")
+        assert high.current_stock_qty == Decimal("7")
 
-    def test_weighted_average_repeating_decimal_is_quantized_not_left_raw(
+    def test_duplicate_decimal_price_merges_into_existing_variant(
         self, client_a
     ):
         client_a.post("/api/purchases/", purchase_payload(quantity="1", price="10"))
         client_a.post("/api/purchases/", purchase_payload(quantity="1", price="11"))
         client_a.post("/api/purchases/", purchase_payload(quantity="1", price="11"))
 
-        variant = ItemVariant.objects.get(item__name="Steel Rod")
+        variant = ItemVariant.objects.get(item__name="Steel Rod", price=Decimal("11"))
         variant.refresh_from_db()
-        assert variant.total_purchased_value == Decimal("32")
-        assert variant.total_purchased_qty == Decimal("3")
-        assert variant.avg_purchase_price == variant.avg_purchase_price.quantize(
-            Decimal("0.01")
-        )
-        assert variant.avg_purchase_price == Decimal("10.67")
+        assert variant.current_stock_qty == Decimal("2")
+        assert variant.price == Decimal("11")
 
     def test_profit_calculation_precision_on_sale(self, client_a):
         client_a.post("/api/purchases/", purchase_payload(quantity="1", price="10"))
         client_a.post("/api/purchases/", purchase_payload(quantity="1", price="11"))
         client_a.post("/api/purchases/", purchase_payload(quantity="1", price="11"))
 
-        variant = ItemVariant.objects.get(item__name="Steel Rod")
+        variant = ItemVariant.objects.get(item__name="Steel Rod", price=Decimal("10"))
         variant.refresh_from_db()
-        avg = variant.avg_purchase_price
-
         res = client_a.post(
             "/api/sales/",
             sale_payload(
@@ -172,19 +180,18 @@ class TestDecimalPrecision:
             ),
         )
         assert res.status_code == 201
-        sale = Sale.objects.get(id=res.data["id"])
-        sale.refresh_from_db()
+        line = SaleItem.objects.get(sale_id=res.data["id"])
 
-        expected_profit = (Decimal("15.33") - avg) * Decimal("1")
-        assert sale.cost_price_at_sale == avg
-        assert sale.profit == expected_profit
-        assert sale.profit == sale.profit.quantize(Decimal("0.01"))
+        expected_profit = Decimal("5.33")
+        assert line.cost_price_at_sale == Decimal("10")
+        assert line.profit == expected_profit
+        assert line.profit == line.profit.quantize(Decimal("0.01"))
 
     def test_grand_total_profit_sums_decimals_exactly(self, client_a):
         client_a.post("/api/purchases/", purchase_payload(quantity="1", price="10"))
         client_a.post("/api/purchases/", purchase_payload(quantity="1", price="11"))
         client_a.post("/api/purchases/", purchase_payload(quantity="1", price="11"))
-        variant = ItemVariant.objects.get(item__name="Steel Rod")
+        variant = ItemVariant.objects.get(item__name="Steel Rod", price=Decimal("10"))
 
         client_a.post(
             "/api/sales/",

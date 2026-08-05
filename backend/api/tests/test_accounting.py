@@ -9,7 +9,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 
-from api.models import ItemVariant, Purchase, Sale
+from api.models import ItemVariant, Purchase, Sale, SaleItem
 
 pytestmark = pytest.mark.django_db
 
@@ -25,9 +25,7 @@ class TestPurchaseIncreasesStockAndAveragePrice:
         variant = ItemVariant.objects.get(item__name="Rod")
 
         assert variant.current_stock_qty == Decimal("10")
-        assert variant.avg_purchase_price == Decimal("100")
-        assert variant.total_purchased_qty == Decimal("10")
-        assert variant.total_purchased_value == Decimal("1000")
+        assert variant.price == Decimal("100")
 
     def test_repeated_purchase_of_same_variant_merges_and_recomputes_weighted_average(
         self, client_a, make_purchase_payload
@@ -51,14 +49,13 @@ class TestPurchaseIncreasesStockAndAveragePrice:
             ),
         )
 
-        variant = ItemVariant.objects.get(item__name="Rod")
-        assert variant.current_stock_qty == Decimal("20")
-        assert variant.total_purchased_qty == Decimal("20")
-        assert variant.total_purchased_value == Decimal("3000")
-        assert variant.avg_purchase_price == Decimal("150")
-        assert ItemVariant.objects.filter(item__name="Rod").count() == 1
+        low_price = ItemVariant.objects.get(item__name="Rod", price=Decimal("100"))
+        high_price = ItemVariant.objects.get(item__name="Rod", price=Decimal("200"))
+        assert low_price.current_stock_qty == Decimal("10")
+        assert high_price.current_stock_qty == Decimal("10")
+        assert ItemVariant.objects.filter(item__name="Rod").count() == 2
 
-    def test_price_does_not_affect_variant_identity(
+    def test_price_affects_variant_identity(
         self, client_a, make_purchase_payload
     ):
         client_a.post(
@@ -79,7 +76,7 @@ class TestPurchaseIncreasesStockAndAveragePrice:
                 price="999",
             ),
         )
-        assert ItemVariant.objects.filter(item__name="Rod").count() == 1
+        assert ItemVariant.objects.filter(item__name="Rod").count() == 2
 
     def test_different_length_or_measurement_creates_separate_variant(
         self, client_a, make_purchase_payload
@@ -136,9 +133,7 @@ class TestPurchaseIncreasesStockAndAveragePrice:
                 price="10",
             ),
         )
-        assert (
-            ItemVariant.objects.filter(item__company__name="Alpha Traders").count() == 1
-        )
+        assert ItemVariant.objects.filter(item__company__name="Alpha Traders").count() == 1
 
 
 class TestSaleDecreasesStockAndBlocksOversell:
@@ -173,7 +168,7 @@ class TestSaleDecreasesStockAndBlocksOversell:
         assert res.status_code == 400
         variant.refresh_from_db()
         assert variant.current_stock_qty == Decimal("5")
-        assert Sale.objects.filter(variant=variant).count() == 0
+        assert SaleItem.objects.filter(variant=variant).count() == 0
 
     def test_cannot_sell_when_zero_stock(
         self, client_a, variant_factory, comp_a, make_sale_payload
@@ -209,7 +204,7 @@ class TestSaleDecreasesStockAndBlocksOversell:
 
 
 class TestProfitCalculation:
-    def test_profit_uses_avg_purchase_price_at_time_of_sale(
+    def test_profit_uses_variant_price_at_time_of_sale(
         self, client_a, make_purchase_payload, make_sale_payload
     ):
         client_a.post(
@@ -221,11 +216,12 @@ class TestProfitCalculation:
             "/api/sales/", make_sale_payload(variant.id, quantity="3", sale_price="150")
         )
         assert res.status_code == 201
-        sale = Sale.objects.get(id=res.data["id"])
-        assert sale.cost_price_at_sale == Decimal("100")
-        assert sale.profit == Decimal("150")
+        line = SaleItem.objects.get(sale_id=res.data["id"])
+        assert line.cost_price_at_sale == Decimal("100")
+        assert line.profit == Decimal("150")
+        assert Decimal(str(res.data["profit"])) == Decimal("150")
 
-    def test_profit_snapshot_is_stable_after_later_purchase_changes_average(
+    def test_profit_snapshot_is_stable_after_later_purchase_creates_new_variant(
         self, client_a, make_purchase_payload, make_sale_payload
     ):
         client_a.post(
@@ -236,21 +232,20 @@ class TestProfitCalculation:
         res1 = client_a.post(
             "/api/sales/", make_sale_payload(variant.id, quantity="2", sale_price="120")
         )
-        sale1 = Sale.objects.get(id=res1.data["id"])
-        assert sale1.cost_price_at_sale == Decimal("100")
-        assert sale1.profit == Decimal("40")
+        line1 = SaleItem.objects.get(sale_id=res1.data["id"])
+        assert line1.cost_price_at_sale == Decimal("100")
+        assert line1.profit == Decimal("40")
 
         client_a.post(
             "/api/purchases/",
             make_purchase_payload(quantity="10", price="200"),
         )
 
-        sale1.refresh_from_db()
-        assert sale1.cost_price_at_sale == Decimal("100")
-        assert sale1.profit == Decimal("40")
+        line1.refresh_from_db()
+        assert line1.cost_price_at_sale == Decimal("100")
+        assert line1.profit == Decimal("40")
 
-        variant.refresh_from_db()
-        assert variant.avg_purchase_price != Decimal("100")
+        assert ItemVariant.objects.filter(item__name="Steel Rod").count() == 2
 
     def test_multiple_sales_each_snapshot_the_average_at_their_own_time(
         self, client_a, make_purchase_payload, make_sale_payload
@@ -266,24 +261,23 @@ class TestProfitCalculation:
                 variant.id, quantity="1", sale_price="200", date="2026-01-02"
             ),
         )
-        sale1 = Sale.objects.get(id=res1.data["id"])
-        assert sale1.cost_price_at_sale == Decimal("100")
+        line1 = SaleItem.objects.get(sale_id=res1.data["id"])
+        assert line1.cost_price_at_sale == Decimal("100")
 
         client_a.post(
             "/api/purchases/", make_purchase_payload(quantity="10", price="300")
         )
-        variant.refresh_from_db()
-        new_avg = variant.avg_purchase_price
+        new_variant = ItemVariant.objects.get(item__name="Steel Rod", price=Decimal("300"))
 
         res2 = client_a.post(
             "/api/sales/",
             make_sale_payload(
-                variant.id, quantity="1", sale_price="400", date="2026-01-03"
+                new_variant.id, quantity="1", sale_price="400", date="2026-01-03"
             ),
         )
-        sale2 = Sale.objects.get(id=res2.data["id"])
-        assert sale2.cost_price_at_sale == new_avg
-        assert sale2.cost_price_at_sale != sale1.cost_price_at_sale
+        line2 = SaleItem.objects.get(sale_id=res2.data["id"])
+        assert line2.cost_price_at_sale == Decimal("300")
+        assert line2.cost_price_at_sale != line1.cost_price_at_sale
 
     def test_grand_total_profit_sums_all_sales(
         self, client_a, make_purchase_payload, make_sale_payload

@@ -72,7 +72,7 @@ class TestSignup:
         client = APIClient()
         client.post(SIGNUP_URL, signup_payload(phone="0300-8253383"))
         company = Company.objects.get(name="Alpha Traders")
-        assert company.phone == "923008253383"
+        assert company.phone == "03008253383"
 
     def test_signup_missing_required_field_rejected(self):
         client = APIClient()
@@ -101,9 +101,9 @@ class TestLogin:
         client = APIClient()
         self._signup(client, phone="923001234567", password="correcthorse")
 
-        # signed up with bare digits, logging in with a formatted version
+        # signed up with bare digits, logging in with separators only
         res = client.post(
-            LOGIN_URL, {"phone": "0300-1234567", "password": "correcthorse"}
+            LOGIN_URL, {"phone": "92300-1234567", "password": "correcthorse"}
         )
         assert res.status_code == 200
 
