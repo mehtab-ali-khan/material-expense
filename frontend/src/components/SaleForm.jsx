@@ -160,6 +160,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
     }
 
     const handleItemSelect = async (rowId, opt) => {
+        setError('')
         updateRow(rowId, 'itemId', opt.id)
         updateRow(rowId, 'itemName', opt.name)
         updateRow(rowId, 'size', '')
@@ -177,14 +178,27 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
         )
         updateRow(rowId, 'size', opt.name)
         updateRow(rowId, 'priceOptions', matches)
+
         if (matches.length === 1) {
+            if (isVariantTakenElsewhere(matches[0].id, rowId)) {
+                updateRow(rowId, 'selectedVariant', null)
+                setError('This item variant is already selected in another row.')
+                return
+            }
+            setError('')
             updateRow(rowId, 'selectedVariant', matches[0])
         } else {
+            setError('')
             updateRow(rowId, 'selectedVariant', null)
         }
     }
-
     const handlePriceSelect = (rowId, variant) => {
+        if (!variant) return
+        if (isVariantTakenElsewhere(variant.id, rowId)) {
+            setError('This item variant is already selected in another row.')
+            return
+        }
+        setError('')
         updateRow(rowId, 'selectedVariant', variant)
     }
 
@@ -194,24 +208,51 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
         return Number(selected.current_stock_qty ?? 0)
     }
 
+    const isVariantTakenElsewhere = (variantId, currentRowId) => {
+        return rows.some((r) => {
+            if (r.id === currentRowId) return false
+            const rowVariantId = r.selectedVariant?.id
+            return rowVariantId === variantId
+        })
+    }
     const disabledReason = useMemo(() => {
         if (!header.partyName.trim()) return 'Select company'
         if (!header.partyContact.trim()) return 'Enter company contact'
         if (!header.date) return 'Select date'
+
+        const seenVariantIds = new Set()
+
         for (let index = 0; index < rows.length; index += 1) {
             const row = rows[index]
             if (!row.itemName.trim()) return `Select item for row ${index + 1}`
             if (!row.size.trim()) return `Select size for row ${index + 1}`
             if (!row.quantity) return `Enter quantity for row ${index + 1}`
             if (!row.salePrice) return `Enter sale price for row ${index + 1}`
+
             const availableStock = getAvailableStock(row)
             const originalQuantity = isEditing ? Number(editingSale.items[index]?.quantity || 0) : 0
             const editableStock = availableStock + originalQuantity
             if (editableStock <= 0) return `No stock available for row ${index + 1}`
             if (Number(row.quantity) > editableStock) return `Not enough stock for row ${index + 1}`
+
+            const variantId = row.selectedVariant?.id
+            if (variantId != null) {
+                if (seenVariantIds.has(variantId)) {
+                    return `This item variant is already selected in another row.`
+                }
+                seenVariantIds.add(variantId)
+            }
         }
         return ''
     }, [editingSale, header, isEditing, rows])
+
+    useEffect(() => {
+        if (disabledReason?.includes('already selected')) {
+            setError(disabledReason)
+        } else if (error?.includes('already selected')) {
+            setError('')
+        }
+    }, [disabledReason])
 
     const isValid = !disabledReason
 
