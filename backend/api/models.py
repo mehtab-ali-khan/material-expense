@@ -14,26 +14,21 @@ import re
 
 def normalize_phone(raw):
     """
-    Normalize a phone number to a canonical digits-only international format.
-    Examples (Pakistan, default country code 92):
-      "+92 308 8253383"  -> "923088253383"
-      "0308-825-3383"     -> "923088253383"
-      "923088253383"      -> "923088253383"
+    Normalize a phone number by stripping formatting characters only.
+    Keeps digits as typed, and preserves a leading '+' if present.
+    Examples:
+      "+92 308 8253383"   -> "+923088253383"
+      "0308-825-3383"      -> "03088253383"
+      "(555) 123-4567"     -> "5551234567"
+      "923088253383"       -> "923088253383"
     """
     if not raw:
         return raw
-    digits = re.sub(r"\D", "", raw)  # strip everything except digits
 
-    if digits.startswith("0092"):
-        digits = digits[2:]  # "0092..." -> "92..."
-    elif digits.startswith("92"):
-        pass  # already has country code
-    elif digits.startswith("0"):
-        digits = "92" + digits[1:]  # local format "03..." -> "923..."
-    else:
-        digits = "92" + digits  # bare number, assume missing country code
-
-    return digits
+    raw = raw.strip()
+    has_plus = raw.startswith("+")
+    digits = re.sub(r"\D", "", raw)
+    return f"+{digits}" if has_plus else digits
 
 
 class Company(models.Model):
