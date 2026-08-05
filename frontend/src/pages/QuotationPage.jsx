@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Box, Heading, Tabs, Button, HStack, VStack, Text } from '@chakra-ui/react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import AppLayout from '../components/AppLayout'
 import QuotationForm from '../components/QuotationForm'
 import QuotationPreview from '../components/QuotationPreview'
@@ -10,8 +11,9 @@ import SearchBar from '../components/SearchBar'
 import DateFilterBar from '../components/DateFilterBar'
 import { downloadQuotationPdf } from '../utils/generateQuotationPdf'
 import { useAuth } from '../context/AuthContext'
-import { getParties } from '../api/parties'
-import { getQuotations, createQuotation } from '../api/quotations'
+import { createQuotation } from '../api/quotations'
+import { queryKeys } from '../api/queryKeys'
+import { usePartiesQuery, useQuotationsQuery } from '../api/queries'
 import { PlusIcon, XIcon, SaveIcon, ArrowUpRightIcon } from '../components/Icons'
 
 const emptyItems = () => [{ description: '', qty: '', price: '' }]
@@ -31,10 +33,8 @@ const formatMoney = (value) => {
 // 'list' | 'view' | 'edit'
 function QuotationPage() {
     const { companyName, profile } = useAuth()
+    const queryClient = useQueryClient()
 
-    const [quotations, setQuotations] = useState([])
-    const [parties, setParties] = useState([])
-    const [loading, setLoading] = useState(true)
     const [toast, setToast] = useState('')
     const [search, setSearch] = useState('')
     const [searchInput, setSearchInput] = useState('')
@@ -43,7 +43,6 @@ function QuotationPage() {
     const [mode, setMode] = useState('list')
     const [viewingQuotation, setViewingQuotation] = useState(null)
     const [activeTab, setActiveTab] = useState('form')
-    const [saving, setSaving] = useState(false)
     const [error, setError] = useState('')
 
     const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
@@ -58,30 +57,34 @@ function QuotationPage() {
         return () => clearTimeout(timer)
     }, [searchInput])
 
-    const loadAll = async () => {
-        setLoading(true)
-        try {
-            const filters = {}
-            if (dateFilter) filters.date = dateFilter
-            if (search.trim()) filters.search = search.trim()
+    const filters = useMemo(() => {
+        const nextFilters = {}
+        if (dateFilter) nextFilters.date = dateFilter
+        if (search.trim()) nextFilters.search = search.trim()
+        return nextFilters
+    }, [dateFilter, search])
 
-            const [quotationsRes, partiesRes] = await Promise.all([
-                getQuotations(filters),
-                getParties('sale'),
-            ])
-            setQuotations(quotationsRes.data)
-            setParties(partiesRes.data)
-        } catch {
-            setToast('Could not load data')
-        } finally {
-            setLoading(false)
-        }
-    }
+    const quotationsQuery = useQuotationsQuery(filters)
+    const partiesQuery = usePartiesQuery('sale')
+
+    const quotations = quotationsQuery.data ?? []
+    const parties = partiesQuery.data ?? []
+    const loading = quotationsQuery.isLoading || partiesQuery.isLoading
+    const hasError = quotationsQuery.isError || partiesQuery.isError
+
+    const createQuotationMutation = useMutation({
+        mutationFn: createQuotation,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.quotationLists })
+            queryClient.invalidateQueries({ queryKey: queryKeys.parties('sale') })
+        },
+    })
 
     useEffect(() => {
-        loadAll()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [dateFilter, search])
+        if (hasError) {
+            setToast('Could not load data')
+        }
+    }, [hasError])
 
     const resetForm = () => {
         setDate(new Date().toISOString().slice(0, 10))
@@ -178,9 +181,8 @@ function QuotationPage() {
             })),
         }
 
-        setSaving(true)
         try {
-            await createQuotation(payload)
+            await createQuotationMutation.mutateAsync(payload)
             setToast('Quotation saved')
 
             downloadQuotationPdf({
@@ -193,11 +195,8 @@ function QuotationPage() {
 
             setMode('list')
             setViewingQuotation(null)
-            loadAll()
         } catch {
             setError('Could not save quotation. Please check the values and try again.')
-        } finally {
-            setSaving(false)
         }
     }
 
@@ -326,7 +325,7 @@ function QuotationPage() {
                             <HStack justify="center" mt={8}>
                                 <Button
                                     onClick={handleSaveAndDownload}
-                                    loading={saving}
+                                    loading={createQuotationMutation.isPending}
                                     disabled={!isValid}
                                     minH="38px" w="full" borderRadius="full"
                                     bg="black" color="white" fontWeight="semibold"

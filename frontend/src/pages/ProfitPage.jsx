@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Box, Heading, Text, VStack, HStack } from '@chakra-ui/react'
-import { getSales } from '../api/sales'
-import { getSalesmen } from '../api/salesmen'
+import { useSalesQuery, useSalesmenQuery } from '../api/queries'
 import AppLayout from '../components/AppLayout'
 import PageLoader from '../components/PageLoader'
 import ToastMessage from '../components/ToastMessage'
@@ -21,35 +20,29 @@ const formatNumber = (value) => {
 }
 
 function ProfitPage() {
-    const [sales, setSales] = useState([])
-    const [salesmen, setSalesmen] = useState([])
     const [salesmanFilter, setSalesmanFilter] = useState('')
-    const [loading, setLoading] = useState(true)
     const [toast, setToast] = useState('')
     const navigate = useNavigate()
 
-    const loadSales = useCallback(async () => {
-        setLoading(true)
-        try {
-            const filters = {}
-            if (salesmanFilter) filters.salesman = salesmanFilter
-
-            const [salesmenRes, salesRes] = await Promise.all([
-                getSalesmen(),
-                getSales(filters),
-            ])
-            setSalesmen(salesmenRes.data)
-            setSales(salesRes.data)
-        } catch {
-            setToast('Could not load data')
-        } finally {
-            setLoading(false)
-        }
+    const filters = useMemo(() => {
+        const nextFilters = {}
+        if (salesmanFilter) nextFilters.salesman = salesmanFilter
+        return nextFilters
     }, [salesmanFilter])
 
+    const salesmenQuery = useSalesmenQuery()
+    const salesQuery = useSalesQuery(filters)
+
+    const salesmen = salesmenQuery.data ?? []
+    const sales = salesQuery.data ?? []
+    const loading = salesmenQuery.isLoading || salesQuery.isLoading
+    const hasError = salesmenQuery.isError || salesQuery.isError
+
     useEffect(() => {
-        loadSales()
-    }, [loadSales])
+        if (hasError) {
+            setToast('Could not load data')
+        }
+    }, [hasError])
 
     const grandTotal = sales.reduce((sum, sale) => sum + Number(sale.profit), 0)
 

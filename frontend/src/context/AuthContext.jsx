@@ -1,21 +1,24 @@
 import { createContext, useContext, useState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { getMe } from '../api/auth'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
+    const queryClient = useQueryClient()
     const [companyName, setCompanyName] = useState(null)
     const [profile, setProfile] = useState({ firstName: '', lastName: '', phone: '' })
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         const handleUnauthorized = () => {
+            queryClient.clear()
             setCompanyName(null)
             setProfile({ firstName: '', lastName: '', phone: '' })
         }
         window.addEventListener('auth:logout', handleUnauthorized)
         return () => window.removeEventListener('auth:logout', handleUnauthorized)
-    }, [])
+    }, [queryClient])
 
     useEffect(() => {
         const token = localStorage.getItem('token')
@@ -39,6 +42,7 @@ export function AuthProvider({ children }) {
     }, [])
 
     const loginSuccess = (token, data) => {
+        queryClient.clear()
         localStorage.setItem('token', token)
         setCompanyName(data.company_name)
         setProfile({
@@ -59,6 +63,7 @@ export function AuthProvider({ children }) {
 
     const logout = () => {
         localStorage.removeItem('token')
+        queryClient.clear()
         setCompanyName(null)
         setProfile({ firstName: '', lastName: '', phone: '' })
     }

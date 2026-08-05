@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
 import { Box, Button, HStack, Input, Stack, Text, SimpleGrid, VStack } from '@chakra-ui/react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createPurchase, updatePurchase } from '../api/purchases'
+import { queryKeys } from '../api/queryKeys'
 import SearchableDropdown from './SearchableDropdown'
 import { SaveIcon, XIcon, PlusIcon } from './Icons'
 import FormMessage from './FormMessage'
@@ -30,6 +32,7 @@ const getApiErrorMessage = (err, fallback) => {
 
 function PurchaseForm({ items, salesmen, parties, sizeOptions, editingPurchase, onSaved, onCancel }) {
     const isEditing = !!editingPurchase
+    const queryClient = useQueryClient()
 
     // Header state
     const [header, setHeader] = useState(() => ({
@@ -55,8 +58,23 @@ function PurchaseForm({ items, salesmen, parties, sizeOptions, editingPurchase, 
     }])
 
     const [error, setError] = useState('')
-    const [loading, setLoading] = useState(false)
     const [keyboardMode, setKeyboardMode] = useState(false)
+    const savePurchaseMutation = useMutation({
+        mutationFn: (payload) => isEditing
+            ? updatePurchase(editingPurchase.id, payload)
+            : createPurchase(payload),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.purchaseLists })
+            queryClient.invalidateQueries({ queryKey: queryKeys.parties('purchase') })
+            queryClient.invalidateQueries({ queryKey: queryKeys.items })
+            queryClient.invalidateQueries({ queryKey: queryKeys.salesmen })
+            queryClient.invalidateQueries({ queryKey: queryKeys.variantLists })
+            onSaved()
+        },
+        onError: (err) => {
+            setError(getApiErrorMessage(err, 'Could not save purchase(s). Please check the values and try again.'))
+        },
+    })
 
     // Header refs
     const dateRef = useRef(null)
@@ -142,42 +160,19 @@ function PurchaseForm({ items, salesmen, parties, sizeOptions, editingPurchase, 
             return
         }
 
-        setLoading(true)
-        try {
-            if (isEditing) {
-                await updatePurchase(editingPurchase.id, {
-                    party_name: header.partyName,
-                    party_contact: header.partyContact,
-                    salesman_name: header.salesmanName || null,
-                    date: header.date,
-                    items: rows.map((row) => ({
-                        id: row.id,
-                        item_name: row.itemName,
-                        size: row.size,
-                        quantity: row.quantity,
-                        price: row.price,
-                    })),
-                })
-            } else {
-                await createPurchase({
-                    party_name: header.partyName,
-                    party_contact: header.partyContact,
-                    salesman_name: header.salesmanName || null,
-                    date: header.date,
-                    items: rows.map(r => ({
-                        item_name: r.itemName,
-                        size: r.size,
-                        quantity: r.quantity,
-                        price: r.price,
-                    })),
-                })
-            }
-            onSaved()
-        } catch (err) {
-            setError(getApiErrorMessage(err, 'Could not save purchase(s). Please check the values and try again.'))
-        } finally {
-            setLoading(false)
-        }
+        savePurchaseMutation.mutate({
+            party_name: header.partyName,
+            party_contact: header.partyContact,
+            salesman_name: header.salesmanName || null,
+            date: header.date,
+            items: rows.map((row) => ({
+                ...(isEditing ? { id: row.id } : {}),
+                item_name: row.itemName,
+                size: row.size,
+                quantity: row.quantity,
+                price: row.price,
+            })),
+        })
     }
 
     return (
@@ -394,7 +389,7 @@ function PurchaseForm({ items, salesmen, parties, sizeOptions, editingPurchase, 
                         )}
                         <Button
                             type="submit"
-                            loading={loading}
+                            loading={savePurchaseMutation.isPending}
                             disabled={!isValid}
                             minH={keyboardMode ? '44px' : '52px'}
                             flex={keyboardMode ? '1' : '2'}

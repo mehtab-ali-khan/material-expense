@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Button, HStack, Input, Stack, Text, SimpleGrid, VStack, Badge } from '@chakra-ui/react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { getVariants } from '../api/variants'
 import { createSale, updateSale } from '../api/sales'
+import { queryKeys } from '../api/queryKeys'
 import SearchableDropdown from './SearchableDropdown'
 import SelectDropdown from './SelectDropdown'
 import { PlusIcon, SaveIcon, XIcon } from './Icons'
@@ -32,6 +34,7 @@ const getApiErrorMessage = (err, fallback) => {
 
 function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) {
     const isEditing = !!editingSale
+    const queryClient = useQueryClient()
 
     const [header, setHeader] = useState(() => ({
         partyName: editingSale?.party_name || '',
@@ -62,8 +65,27 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
     }])
 
     const [error, setError] = useState('')
-    const [loading, setLoading] = useState(false)
     const [keyboardMode, setKeyboardMode] = useState(false)
+    const saveSaleMutation = useMutation({
+        mutationFn: (payload) => isEditing
+            ? updateSale(editingSale.id, payload)
+            : createSale(payload),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.saleLists })
+            queryClient.invalidateQueries({ queryKey: queryKeys.parties('sale') })
+            queryClient.invalidateQueries({ queryKey: queryKeys.salesmen })
+            queryClient.invalidateQueries({ queryKey: queryKeys.variantLists })
+            onSaved()
+        },
+        onError: (err) => {
+            setError(getApiErrorMessage(
+                err,
+                isEditing
+                    ? 'Could not save changes. Please check the values and try again.'
+                    : 'Could not save sale(s). Check the values and try again.'
+            ))
+        },
+    })
     const dateRef = useRef(null)
     const partyRef = useRef(null)
     const partyContactRef = useRef(null)
@@ -105,8 +127,14 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
         const loadInitialVariants = async () => {
             const loaded = await Promise.all(editingSale.items.map(async (item) => {
                 if (!item.item_id) return { item, variants: [] }
-                const res = await getVariants(item.item_id)
-                return { item, variants: res.data }
+                const variants = await queryClient.fetchQuery({
+                    queryKey: queryKeys.variants(item.item_id),
+                    queryFn: async () => {
+                        const res = await getVariants(item.item_id)
+                        return res.data
+                    },
+                })
+                return { item, variants }
             }))
             setRows((current) => current.map((row, index) => {
                 const { item, variants } = loaded[index] || {}
@@ -124,7 +152,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
         loadInitialVariants().finally(() => {
             setRows((current) => current.map((row) => ({ ...row, loadingVariants: false })))
         })
-    }, [isEditing, editingSale])
+    }, [isEditing, editingSale, queryClient])
 
     const partyContactOptions = header.partyContact ? [{ id: 'current', name: header.partyContact }] : []
 
@@ -166,8 +194,14 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
         updateRow(rowId, 'size', '')
         updateRow(rowId, 'selectedVariant', null)
         updateRow(rowId, 'loadingVariants', true)
-        const res = await getVariants(opt.id)
-        updateRow(rowId, 'variants', res.data)
+        const variants = await queryClient.fetchQuery({
+            queryKey: queryKeys.variants(opt.id),
+            queryFn: async () => {
+                const res = await getVariants(opt.id)
+                return res.data
+            },
+        })
+        updateRow(rowId, 'variants', variants)
         updateRow(rowId, 'loadingVariants', false)
     }
 
@@ -252,7 +286,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
         } else if (error?.includes('already selected')) {
             setError('')
         }
-    }, [disabledReason])
+    }, [disabledReason, error])
 
     const isValid = !disabledReason
 
@@ -291,46 +325,22 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
             return options.length ? options[0].id : null
         }
 
-        setLoading(true)
-        try {
-            if (isEditing) {
-                await updateSale(editingSale.id, {
-                    party_name: header.partyName,
-                    party_contact: header.partyContact,
-                    salesman_name: header.salesmanName || null,
-                    date: header.date,
-                    items: rows.map((row) => ({
-                        id: row.id,
-                        variant: getRowVariantId(row),
-                        quantity: row.quantity,
-                        sale_price: row.salePrice,
-                    })),
-                })
-            } else {
-                await createSale({
-                    party_name: header.partyName,
-                    party_contact: header.partyContact,
-                    salesman_name: header.salesmanName || null,
-                    date: header.date,
-                    items: rows.map((row) => ({
-                        variant: getRowVariantId(row),
-                        quantity: row.quantity,
-                        sale_price: row.salePrice,
-                    })),
-                })
-                resetForm()
-            }
-            onSaved()
-        } catch (err) {
-            setError(getApiErrorMessage(
-                err,
-                isEditing
-                    ? 'Could not save changes. Please check the values and try again.'
-                    : 'Could not save sale(s). Check the values and try again.'
-            ))
-        } finally {
-            setLoading(false)
-        }
+        saveSaleMutation.mutate({
+            party_name: header.partyName,
+            party_contact: header.partyContact,
+            salesman_name: header.salesmanName || null,
+            date: header.date,
+            items: rows.map((row) => ({
+                ...(isEditing ? { id: row.id } : {}),
+                variant: getRowVariantId(row),
+                quantity: row.quantity,
+                sale_price: row.salePrice,
+            })),
+        }, {
+            onSuccess: () => {
+                if (!isEditing) resetForm()
+            },
+        })
     }
 
     return (
@@ -592,7 +602,7 @@ function SaleForm({ items, salesmen, parties, editingSale, onSaved, onCancel }) 
                         )}
                         <Button
                             type="submit"
-                            loading={loading}
+                            loading={saveSaleMutation.isPending}
                             disabled={!isValid}
                             minH={keyboardMode ? '44px' : '52px'}
                             flex={keyboardMode ? '1' : '2'}

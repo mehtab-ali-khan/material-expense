@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button, Input, Stack, Text, Link as ChakraLink, Field, Box } from '@chakra-ui/react'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
+import { useMutation } from '@tanstack/react-query'
 import { login } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
 import AuthLayout from '../components/AuthLayout'
@@ -24,25 +25,25 @@ function LoginPage() {
     const [phone, setPhone] = useState('')
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
-    const [loading, setLoading] = useState(false)
     const [showPassword, setShowPassword] = useState(false)
 
     const { loginSuccess } = useAuth()
     const navigate = useNavigate()
+    const loginMutation = useMutation({
+        mutationFn: () => login(phone, password),
+        onSuccess: (res) => {
+            loginSuccess(res.data.token, res.data)
+            navigate('/purchase')
+        },
+        onError: () => {
+            setError('Invalid company name or password.')
+        },
+    })
 
     const handleSubmit = async (e) => {
         e.preventDefault()
         setError('')
-        setLoading(true)
-        try {
-            const res = await login(phone, password)
-            loginSuccess(res.data.token, res.data)
-            navigate('/purchase')
-        } catch {
-            setError('Invalid company name or password.')
-        } finally {
-            setLoading(false)
-        }
+        loginMutation.mutate()
     }
 
     return (
@@ -97,7 +98,7 @@ function LoginPage() {
 
                     <Button
                         type="submit"
-                        loading={loading}
+                        loading={loginMutation.isPending}
                         w="full"
                         minH="54px"
                         borderRadius="xl"

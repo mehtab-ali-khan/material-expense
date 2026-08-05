@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Box, Heading, Text, VStack, HStack, IconButton, Button } from '@chakra-ui/react'
+import { Box, Heading, Text, VStack, HStack, Button } from '@chakra-ui/react'
 import { ArrowLeftIcon } from '../components/Icons'
-import { getSale } from '../api/sales'
+import { useSaleQuery } from '../api/queries'
 import AppLayout from '../components/AppLayout'
 import PageLoader from '../components/PageLoader'
 import ToastMessage from '../components/ToastMessage'
@@ -22,26 +22,17 @@ const formatNumber = (value) => {
 function ProfitDetailPage() {
     const { id } = useParams()
     const navigate = useNavigate()
-    const [sale, setSale] = useState(null)
-    const [loading, setLoading] = useState(true)
     const [toast, setToast] = useState('')
+    const saleQuery = useSaleQuery(id)
 
     useEffect(() => {
-        loadSale()
-    }, [id])
-
-    const loadSale = async () => {
-        setLoading(true)
-        try {
-            const res = await getSale(id)
-            setSale(res.data)
-        } catch {
+        if (saleQuery.isError) {
             setToast('Could not load sale')
-        } finally {
-            setLoading(false)
         }
-    }
+    }, [saleQuery.isError])
 
+    const sale = saleQuery.data
+    const loading = saleQuery.isLoading
     const items = sale?.items || []
 
     return (

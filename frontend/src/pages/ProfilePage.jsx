@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Box, Button, Heading, Input, Stack, Text, VStack } from '@chakra-ui/react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import AppLayout from '../components/AppLayout'
 import PageLoader from '../components/PageLoader'
 import ToastMessage from '../components/ToastMessage'
@@ -7,6 +8,7 @@ import FormMessage from '../components/FormMessage'
 import { SaveIcon } from '../components/Icons'
 import { useAuth } from '../context/AuthContext'
 import { updateMe } from '../api/auth'
+import { queryKeys } from '../api/queryKeys'
 
 const fieldInputStyles = {
     bg: 'white',
@@ -23,14 +25,28 @@ const fieldInputStyles = {
 
 function ProfilePage() {
     const { companyName, profile, updateProfile } = useAuth()
+    const queryClient = useQueryClient()
 
     const [firstName, setFirstName] = useState(profile.firstName || '')
     const [lastName, setLastName] = useState(profile.lastName || '')
     const [phone, setPhone] = useState(profile.phone || '')
     const [name, setName] = useState(companyName || '')
     const [error, setError] = useState('')
-    const [loading, setLoading] = useState(false)
     const [toast, setToast] = useState('')
+    const updateProfileMutation = useMutation({
+        mutationFn: updateMe,
+        onSuccess: (res) => {
+            updateProfile(res.data)
+            queryClient.setQueryData(queryKeys.me, res.data)
+            setToast('Profile updated')
+        },
+        onError: (err) => {
+            const data = err.response?.data
+            const detail =
+                data?.phone?.[0] || data?.name?.[0] || data?.detail || null
+            setError(detail || 'Could not save changes. Please check the values and try again.')
+        },
+    })
 
     // Resync local fields whenever the source of truth changes
     // (e.g. right after a successful save, or if profile loads late)
@@ -57,24 +73,12 @@ function ProfilePage() {
             return
         }
 
-        setLoading(true)
-        try {
-            const res = await updateMe({
-                first_name: firstName.trim(),
-                last_name: lastName.trim(),
-                phone: phone.trim(),
-                name: name.trim(),
-            })
-            updateProfile(res.data) // triggers the useEffect above, reflecting new values immediately
-            setToast('Profile updated')
-        } catch (err) {
-            const data = err.response?.data
-            const detail =
-                data?.phone?.[0] || data?.name?.[0] || data?.detail || null
-            setError(detail || 'Could not save changes. Please check the values and try again.')
-        } finally {
-            setLoading(false)
-        }
+        updateProfileMutation.mutate({
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            phone: phone.trim(),
+            name: name.trim(),
+        })
     }
 
     if (!profile) return <PageLoader />
@@ -134,8 +138,8 @@ function ProfilePage() {
 
                         <Button
                             type="submit"
-                            loading={loading}
-                            disabled={!isDirty || loading}
+                            loading={updateProfileMutation.isPending}
+                            disabled={!isDirty || updateProfileMutation.isPending}
                             size="sm"
                             h="38px"
                             borderRadius="full"

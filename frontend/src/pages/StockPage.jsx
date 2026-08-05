@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Box, Heading, Text, VStack, HStack } from '@chakra-ui/react'
-import { getVariants } from '../api/variants'
-import { getSalesmen } from '../api/salesmen'
+import { useSalesmenQuery, useVariantsQuery } from '../api/queries'
 import AppLayout from '../components/AppLayout'
 import PageLoader from '../components/PageLoader'
 import ToastMessage from '../components/ToastMessage'
 import FilterDropdown from '../components/FilterDropdown'
+
+const EMPTY_ARRAY = []
 
 const formatNumber = (value) => {
     const number = Number(value)
@@ -14,38 +15,32 @@ const formatNumber = (value) => {
 }
 
 function StockPage() {
-    const [stock, setStock] = useState([])
-    const [salesmen, setSalesmen] = useState([])
     const [salesmanFilter, setSalesmanFilter] = useState('')
-    const [loading, setLoading] = useState(true)
     const [toast, setToast] = useState('')
 
-    const loadStock = useCallback(async () => {
-        setLoading(true)
-        try {
-            const [salesmenRes, variantsRes] = await Promise.all([
-                getSalesmen(),
-                getVariants(),
-            ])
-            setSalesmen(salesmenRes.data)
+    const salesmenQuery = useSalesmenQuery()
+    const variantsQuery = useVariantsQuery()
 
-            const selectedSalesman = salesmenRes.data.find((salesman) => String(salesman.id) === String(salesmanFilter))
-            setStock(variantsRes.data.filter((item) => {
-                const hasStock = Number(item.current_stock_qty) > 0
-                if (!hasStock) return false
-                if (!selectedSalesman) return true
-                return item.last_purchase_salesman === selectedSalesman.name
-            }))
-        } catch {
-            setToast('Could not load data')
-        } finally {
-            setLoading(false)
-        }
-    }, [salesmanFilter])
+    const salesmen = salesmenQuery.data ?? EMPTY_ARRAY
+    const stock = useMemo(() => {
+        const selectedSalesman = salesmen.find((salesman) => String(salesman.id) === String(salesmanFilter))
+
+        return (variantsQuery.data ?? EMPTY_ARRAY).filter((item) => {
+            const hasStock = Number(item.current_stock_qty) > 0
+            if (!hasStock) return false
+            if (!selectedSalesman) return true
+            return item.last_purchase_salesman === selectedSalesman.name
+        })
+    }, [salesmanFilter, salesmen, variantsQuery.data])
+
+    const loading = salesmenQuery.isLoading || variantsQuery.isLoading
+    const hasError = salesmenQuery.isError || variantsQuery.isError
 
     useEffect(() => {
-        loadStock()
-    }, [loadStock])
+        if (hasError) {
+            setToast('Could not load data')
+        }
+    }, [hasError])
 
     return (
         <AppLayout>

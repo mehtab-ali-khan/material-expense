@@ -1,0 +1,15 @@
+export const queryKeys = {
+  items: ['items'],
+  me: ['me'],
+  parties: (type) => ['parties', type || 'all'],
+  purchases: (filters = {}) => ['purchases', filters],
+  purchaseLists: ['purchases'],
+  quotations: (filters = {}) => ['quotations', filters],
+  quotationLists: ['quotations'],
+  sale: (id) => ['sales', id],
+  sales: (filters = {}) => ['sales', filters],
+  saleLists: ['sales'],
+  salesmen: ['salesmen'],
+  variants: (itemId) => ['variants', itemId || 'all'],
+  variantLists: ['variants'],
+}

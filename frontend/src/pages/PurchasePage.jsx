@@ -1,10 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Box, Heading, Text, VStack, Button, HStack } from '@chakra-ui/react'
-import { getItems } from '../api/items'
-import { getSalesmen } from '../api/salesmen'
-import { getVariants } from '../api/variants'
-import { getPurchases } from '../api/purchases'
-import { getParties } from '../api/parties'
+import { useItemsQuery, usePartiesQuery, usePurchasesQuery, useSalesmenQuery, useVariantsQuery } from '../api/queries'
 import SearchBar from '../components/SearchBar'
 import PurchaseForm from '../components/PurchaseForm'
 import AppLayout from '../components/AppLayout'
@@ -28,14 +24,8 @@ const formatMoney = (value) => {
 }
 
 function PurchasePage() {
-    const [items, setItems] = useState([])
-    const [salesmen, setSalesmen] = useState([])
-    const [parties, setParties] = useState([])
-    const [sizeOptions, setSizeOptions] = useState([])
-    const [purchases, setPurchases] = useState([])
     const [showForm, setShowForm] = useState(false)
     const [editingPurchase, setEditingPurchase] = useState(null)
-    const [loading, setLoading] = useState(true)
     const [toast, setToast] = useState('')
     const [search, setSearch] = useState('')
     const [searchInput, setSearchInput] = useState('')
@@ -48,47 +38,42 @@ function PurchasePage() {
 
     const [dateFilter, setDateFilter] = useState()
 
-    const loadAll = useCallback(async () => {
-        setLoading(true)
-        try {
-            const filters = {}
-            if (dateFilter) filters.date = dateFilter
-            if (search.trim()) filters.search = search.trim()
-            if (salesmanFilter) filters.salesman = salesmanFilter
-
-            const [itemsRes, salesmenRes, partiesRes, variantsRes, purchasesRes] = await Promise.all([
-                getItems(),
-                getSalesmen(),
-                getParties('purchase'),
-                getVariants(),
-                getPurchases(filters),
-            ])
-            setItems(itemsRes.data)
-            setSalesmen(salesmenRes.data)
-            setParties(partiesRes.data)
-            setPurchases(purchasesRes.data)
-
-            setSizeOptions(variantsRes.data.map((variant) => ({
-                id: variant.id,
-                itemName: variant.item_name,
-                name: variant.size,
-            })))
-        } catch {
-            setToast('Could not load data')
-        } finally {
-            setLoading(false)
-        }
+    const filters = useMemo(() => {
+        const nextFilters = {}
+        if (dateFilter) nextFilters.date = dateFilter
+        if (search.trim()) nextFilters.search = search.trim()
+        if (salesmanFilter) nextFilters.salesman = salesmanFilter
+        return nextFilters
     }, [dateFilter, search, salesmanFilter])
 
+    const itemsQuery = useItemsQuery()
+    const salesmenQuery = useSalesmenQuery()
+    const partiesQuery = usePartiesQuery('purchase')
+    const variantsQuery = useVariantsQuery()
+    const purchasesQuery = usePurchasesQuery(filters)
+
+    const items = itemsQuery.data ?? []
+    const salesmen = salesmenQuery.data ?? []
+    const parties = partiesQuery.data ?? []
+    const purchases = purchasesQuery.data ?? []
+    const sizeOptions = useMemo(() => (variantsQuery.data ?? []).map((variant) => ({
+        id: variant.id,
+        itemName: variant.item_name,
+        name: variant.size,
+    })), [variantsQuery.data])
+    const loading = itemsQuery.isLoading || salesmenQuery.isLoading || partiesQuery.isLoading || variantsQuery.isLoading || purchasesQuery.isLoading
+    const hasError = itemsQuery.isError || salesmenQuery.isError || partiesQuery.isError || variantsQuery.isError || purchasesQuery.isError
+
     useEffect(() => {
-        loadAll()
-    }, [loadAll])
+        if (hasError) {
+            setToast('Could not load data')
+        }
+    }, [hasError])
 
     const handleSaved = () => {
         setShowForm(false)
         setEditingPurchase(null)
         setToast(editingPurchase ? 'Purchase updated' : 'Purchase saved')
-        loadAll()
     }
 
     const handleCancel = () => {

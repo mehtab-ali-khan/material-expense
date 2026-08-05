@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button, Input, Stack, Text, Link as ChakraLink, Field, Box } from '@chakra-ui/react'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
+import { useMutation } from '@tanstack/react-query'
 import { signup, login } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
 import AuthLayout from '../components/AuthLayout'
@@ -28,12 +29,24 @@ function SignupPage() {
     const [password, setPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
     const [error, setError] = useState('')
-    const [loading, setLoading] = useState(false)
     const [showPassword, setShowPassword] = useState(false)
     const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
     const { loginSuccess } = useAuth()
     const navigate = useNavigate()
+    const signupMutation = useMutation({
+        mutationFn: async () => {
+            await signup(name, password, firstName, lastName, phone)
+            return login(phone, password)
+        },
+        onSuccess: (res) => {
+            loginSuccess(res.data.token, res.data)
+            navigate('/purchase')
+        },
+        onError: () => {
+            setError('Could not sign up. Company name may already be taken.')
+        },
+    })
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -42,17 +55,7 @@ function SignupPage() {
             setError('Passwords do not match.')
             return
         }
-        setLoading(true)
-        try {
-            await signup(name, password, firstName, lastName, phone)
-            const res = await login(phone, password)
-            loginSuccess(res.data.token, res.data)
-            navigate('/purchase')
-        } catch {
-            setError('Could not sign up. Company name may already be taken.')
-        } finally {
-            setLoading(false)
-        }
+        signupMutation.mutate()
     }
 
     return (
@@ -173,7 +176,7 @@ function SignupPage() {
 
                     <Button
                         type="submit"
-                        loading={loading}
+                        loading={signupMutation.isPending}
                         w="full"
                         minH="54px"
                         borderRadius="xl"

@@ -1,9 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Box, Heading, Text, VStack, Button, HStack } from '@chakra-ui/react'
-import { getItems } from '../api/items'
-import { getSalesmen } from '../api/salesmen'
-import { getSales } from '../api/sales'
-import { getParties } from '../api/parties'
+import { useItemsQuery, usePartiesQuery, useSalesQuery, useSalesmenQuery } from '../api/queries'
 import SaleForm from '../components/SaleForm'
 import AppLayout from '../components/AppLayout'
 import { PlusIcon, XIcon } from '../components/Icons'
@@ -26,13 +23,8 @@ const formatMoney = (value) => {
 }
 
 function SalePage() {
-    const [items, setItems] = useState([])
-    const [salesmen, setSalesmen] = useState([])
-    const [parties, setParties] = useState([])
-    const [sales, setSales] = useState([])
     const [showForm, setShowForm] = useState(false)
     const [editingSale, setEditingSale] = useState(null)
-    const [loading, setLoading] = useState(true)
     const [toast, setToast] = useState('')
     const [search, setSearch] = useState('')
     const [searchInput, setSearchInput] = useState('')
@@ -45,40 +37,36 @@ function SalePage() {
 
     const [dateFilter, setDateFilter] = useState()
 
-    const loadAll = useCallback(async () => {
-        setLoading(true)
-        try {
-            const filters = {}
-            if (dateFilter) filters.date = dateFilter
-            if (search.trim()) filters.search = search.trim()
-            if (salesmanFilter) filters.salesman = salesmanFilter
-
-            const [itemsRes, salesmenRes, partiesRes, salesRes] = await Promise.all([
-                getItems(),
-                getSalesmen(),
-                getParties('sale'),
-                getSales(filters),
-            ])
-            setItems(itemsRes.data)
-            setSalesmen(salesmenRes.data)
-            setParties(partiesRes.data)
-            setSales(salesRes.data)
-        } catch {
-            setToast('Could not load data')
-        } finally {
-            setLoading(false)
-        }
+    const filters = useMemo(() => {
+        const nextFilters = {}
+        if (dateFilter) nextFilters.date = dateFilter
+        if (search.trim()) nextFilters.search = search.trim()
+        if (salesmanFilter) nextFilters.salesman = salesmanFilter
+        return nextFilters
     }, [dateFilter, search, salesmanFilter])
 
+    const itemsQuery = useItemsQuery()
+    const salesmenQuery = useSalesmenQuery()
+    const partiesQuery = usePartiesQuery('sale')
+    const salesQuery = useSalesQuery(filters)
+
+    const items = itemsQuery.data ?? []
+    const salesmen = salesmenQuery.data ?? []
+    const parties = partiesQuery.data ?? []
+    const sales = salesQuery.data ?? []
+    const loading = itemsQuery.isLoading || salesmenQuery.isLoading || partiesQuery.isLoading || salesQuery.isLoading
+    const hasError = itemsQuery.isError || salesmenQuery.isError || partiesQuery.isError || salesQuery.isError
+
     useEffect(() => {
-        loadAll()
-    }, [loadAll])
+        if (hasError) {
+            setToast('Could not load data')
+        }
+    }, [hasError])
 
     const handleSaved = () => {
         setShowForm(false)
         setEditingSale(null)
         setToast(editingSale ? 'Sale updated' : 'Sale saved')
-        loadAll()
     }
 
     const handleCancel = () => {

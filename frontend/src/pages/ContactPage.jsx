@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Box, Button, Heading, Textarea, VStack, HStack } from '@chakra-ui/react'
+import { useMutation } from '@tanstack/react-query'
 import AppLayout from '../components/AppLayout'
 import { SaveIcon } from '../components/Icons'
 import FormMessage from '../components/FormMessage'
@@ -9,8 +10,17 @@ import { sendContactMessage } from '../api/contact'
 function ContactPage() {
     const [message, setMessage] = useState('')
     const [error, setError] = useState('')
-    const [loading, setLoading] = useState(false)
     const [toast, setToast] = useState('')
+    const sendMessageMutation = useMutation({
+        mutationFn: sendContactMessage,
+        onSuccess: () => {
+            setMessage('')
+            setToast('Message sent')
+        },
+        onError: () => {
+            setError('Could not send message. Please try again.')
+        },
+    })
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -21,16 +31,7 @@ function ContactPage() {
             return
         }
 
-        setLoading(true)
-        try {
-            await sendContactMessage(message.trim())
-            setMessage('')
-            setToast('Message sent')
-        } catch {
-            setError('Could not send message. Please try again.')
-        } finally {
-            setLoading(false)
-        }
+        sendMessageMutation.mutate(message.trim())
     }
 
     return (
@@ -68,7 +69,7 @@ function ContactPage() {
                         <HStack justify="center">
                             <Button
                                 type="submit"
-                                loading={loading}
+                                loading={sendMessageMutation.isPending}
                                 size="sm"
                                 h="38px"
                                 w="full"
