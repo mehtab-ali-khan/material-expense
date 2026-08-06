@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { Box, HStack, Input, Text } from '@chakra-ui/react'
 import { CalendarIcon, XIcon } from './Icons'
 
@@ -11,6 +11,12 @@ const formatLabel = (dateStr) => {
 function DateFilterBar({ value, onChange }) {
     const inputRef = useRef(null)
     const isFiltered = !!value
+    const isIOS = useMemo(() => {
+        if (typeof navigator === 'undefined') return false
+
+        return /iPad|iPhone|iPod/.test(navigator.userAgent)
+            || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    }, [])
 
     const openPicker = () => {
         if (inputRef.current?.showPicker) {
@@ -59,29 +65,34 @@ function DateFilterBar({ value, onChange }) {
                         onClick={handleClear}
                         display="flex"
                         alignItems="center"
+                        position="relative"
+                        zIndex={2}
                         ml={1}
                         pl={1.5}
                         borderLeft="1px solid"
                         borderColor="whiteAlpha.400"
+                        pointerEvents="auto"
                     >
                         <XIcon size={13} />
                     </Box>
                 )}
             </HStack>
 
-            {/* hidden native date input, triggered programmatically via showPicker() */}
             <Input
                 ref={inputRef}
+                aria-label="Filter by date"
                 type="date"
                 value={value || ''}
                 onChange={handleDateChange}
                 position="absolute"
                 top={0}
                 left={0}
-                w="1px"
-                h="1px"
+                w="100%"
+                h="100%"
                 opacity={0}
-                pointerEvents="none"
+                cursor="pointer"
+                zIndex={1}
+                pointerEvents={isIOS ? 'auto' : 'none'}
             />
         </Box>
     )
