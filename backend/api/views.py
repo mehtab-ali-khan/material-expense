@@ -295,7 +295,7 @@ class QuotationListCreateView(generics.ListCreateAPIView):
         serializer.save()
 
 
-class QuotationDetailView(generics.RetrieveUpdateAPIView):
+class QuotationDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = QuotationSerializer
 
     def get_queryset(self):

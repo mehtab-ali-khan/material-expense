@@ -11,10 +11,10 @@ import SearchBar from '../components/SearchBar'
 import DateFilterBar from '../components/DateFilterBar'
 import { downloadQuotationPdf } from '../utils/generateQuotationPdf'
 import { useAuth } from '../context/AuthContext'
-import { createQuotation } from '../api/quotations'
+import { createQuotation, deleteQuotation } from '../api/quotations'
 import { queryKeys } from '../api/queryKeys'
 import { usePartiesQuery, useQuotationsQuery } from '../api/queries'
-import { PlusIcon, XIcon, SaveIcon, ArrowUpRightIcon } from '../components/Icons'
+import { PlusIcon, XIcon, SaveIcon, ArrowUpRightIcon, TrashIcon } from '../components/Icons'
 
 const emptyItems = () => [{ description: '', qty: '', price: '' }]
 
@@ -42,6 +42,7 @@ function QuotationPage() {
 
     const [mode, setMode] = useState('list')
     const [viewingQuotation, setViewingQuotation] = useState(null)
+    const [quotationToDelete, setQuotationToDelete] = useState(null)
     const [activeTab, setActiveTab] = useState('form')
     const [error, setError] = useState('')
 
@@ -77,6 +78,13 @@ function QuotationPage() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.quotationLists })
             queryClient.invalidateQueries({ queryKey: queryKeys.parties('sale') })
+        },
+    })
+
+    const deleteQuotationMutation = useMutation({
+        mutationFn: deleteQuotation,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.quotationLists })
         },
     })
 
@@ -131,6 +139,26 @@ function QuotationPage() {
     const handleCancel = () => {
         setMode('list')
         setViewingQuotation(null)
+    }
+
+    const handleRequestDelete = (quotation) => {
+        setQuotationToDelete(quotation)
+    }
+
+    const handleConfirmDelete = async () => {
+        if (!quotationToDelete) return
+
+        try {
+            await deleteQuotationMutation.mutateAsync(quotationToDelete.id)
+            setToast('Quotation deleted')
+            if (viewingQuotation?.id === quotationToDelete.id) {
+                setMode('list')
+                setViewingQuotation(null)
+            }
+            setQuotationToDelete(null)
+        } catch {
+            setToast('Could not delete quotation')
+        }
     }
 
     const validItems = items.filter((it) => it.description.trim() && it.qty && it.price)
@@ -361,23 +389,42 @@ function QuotationPage() {
                             {[...quotations]
                                 .sort((a, b) => new Date(b.date) - new Date(a.date) || b.id - a.id)
                                 .map((q) => (
-                                    <QuotationCard key={q.id} quotation={q} onClick={() => handleCardClick(q)} />
+                                    <QuotationCard
+                                        key={q.id}
+                                        quotation={q}
+                                        onClick={() => handleCardClick(q)}
+                                        onDelete={() => handleRequestDelete(q)}
+                                    />
                                 ))}
                         </VStack>
                     )
                 )}
             </Box>
+            <DeleteQuotationDialog
+                quotation={quotationToDelete}
+                loading={deleteQuotationMutation.isPending}
+                onCancel={() => setQuotationToDelete(null)}
+                onConfirm={handleConfirmDelete}
+            />
             <ToastMessage message={toast} onDone={() => setToast('')} />
         </AppLayout>
     )
 }
 
-function QuotationCard({ quotation, onClick }) {
+function QuotationCard({ quotation, onClick, onDelete }) {
+    const handleKeyDown = (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onClick()
+        }
+    }
+
     return (
         <Box
-            as="button"
-            type="button"
+            role="button"
+            tabIndex={0}
             onClick={onClick}
+            onKeyDown={handleKeyDown}
             w="100%"
             textAlign="left"
             bg="white"
@@ -411,9 +458,124 @@ function QuotationCard({ quotation, onClick }) {
                 </Text>
             </HStack>
 
-            <Text mt={1.5} fontSize="12px" color="gray.600" lineHeight="1.35">
-                Sub {formatMoney(quotation.sub_total)} · VAT {quotation.vat_percent}% ({formatMoney(quotation.vat_amount)}) · {formatDisplayDate(quotation.date)}
-            </Text>
+            <HStack justify="space-between" align="center" gap={2}>
+                <Text fontSize="12px" color="gray.600" lineHeight="1.35" minW={0}>
+                    Sub {formatMoney(quotation.sub_total)} · VAT {quotation.vat_percent}% ({formatMoney(quotation.vat_amount)}) · {formatDisplayDate(quotation.date)}
+                </Text>
+                <Button
+                    type="button"
+                    aria-label={`Delete quotation for ${quotation.party_name}`}
+                    minW="26px"
+                    h="26px"
+                    p={0}
+                    borderRadius="full"
+                    bg="white"
+                    color="red.600"
+                    border="1px solid"
+                    borderColor="red.100"
+                    flexShrink={0}
+                    _hover={{ bg: 'red.50', borderColor: 'red.200' }}
+                    onClick={(event) => {
+                        event.stopPropagation()
+                        onDelete()
+                    }}
+                >
+                    <TrashIcon size={14} />
+                </Button>
+            </HStack>
+        </Box>
+    )
+}
+
+function DeleteQuotationDialog({ quotation, loading, onCancel, onConfirm }) {
+    if (!quotation) return null
+
+    const handleCancel = () => {
+        if (!loading) onCancel()
+    }
+
+    return (
+        <Box
+            position="fixed"
+            inset={0}
+            zIndex={90}
+            bg="rgba(0,0,0,0.42)"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            px={4}
+            onClick={handleCancel}
+        >
+            <Box
+                bg="white"
+                w="100%"
+                maxW="360px"
+                borderRadius="24px"
+                boxShadow="0 24px 70px rgba(0,0,0,0.24)"
+                px={5}
+                pt={5}
+                pb={4}
+                onClick={(event) => event.stopPropagation()}
+            >
+                <VStack gap={3} align="center" textAlign="center">
+                    <Box
+                        w="52px"
+                        h="52px"
+                        borderRadius="full"
+                        bg="#fff1f2"
+                        color="red.600"
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        boxShadow="inset 0 0 0 1px rgba(220,38,38,0.12)"
+                    >
+                        <TrashIcon size={22} />
+                    </Box>
+
+                    <Box minW={0}>
+                        <Text color="black" fontSize="20px" fontWeight="bold" lineHeight="1.2">
+                            Delete quotation?
+                        </Text>
+                        <Text color="gray.600" fontSize="14px" lineHeight="1.5" mt={2}>
+                            This will permanently remove the quotation for
+                            {' '}
+                            <Box as="span" color="black" fontWeight="semibold">
+                                {quotation.party_name}
+                            </Box>
+                            . This action cannot be undone.
+                        </Text>
+                    </Box>
+                </VStack>
+
+                <VStack gap={2.5} mt={6} align="stretch">
+                    <Button
+                        onClick={onConfirm}
+                        loading={loading}
+                        minH="44px"
+                        w="full"
+                        borderRadius="full"
+                        bg="black.600"
+                        color="white"
+                        fontWeight="semibold"
+                        _hover={{ bg: 'red.700' }}
+                    >
+                        Delete quotation
+                    </Button>
+                    <Button
+                        onClick={handleCancel}
+                        disabled={loading}
+                        minH="42px"
+                        w="full"
+                        borderRadius="full"
+                        bg="gray.100"
+                        color="black"
+                        fontWeight="semibold"
+                        _hover={{ bg: 'gray.200' }}
+                    >
+                        Cancel
+                    </Button>
+                </VStack>
+            </Box>
         </Box>
     )
 }
