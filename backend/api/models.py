@@ -131,6 +131,8 @@ class Salesman(models.Model):
         Company, on_delete=models.CASCADE, related_name="salesmen"
     )
     name = models.CharField(max_length=255)
+    salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    contact = models.CharField(max_length=32, blank=True, default="")
 
     class Meta:
         unique_together = ("company", "name")
@@ -142,6 +144,7 @@ class Salesman(models.Model):
 
     def save(self, *args, **kwargs):
         self.name = self.name.strip()
+        self.contact = self.contact.strip()
         super().save(*args, **kwargs)
 
     def __str__(self):

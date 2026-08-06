@@ -100,6 +100,22 @@ class TestSalesmanSharedAcrossPurchaseAndSale:
         client_a.post("/api/purchases/", purchase_payload(salesman_name="Bilal"))
         res = client_a.get("/api/salesmen/")
         assert [s["name"] for s in res.data] == ["Bilal"]
+        assert set(res.data[0].keys()) == {"id", "name", "salary", "contact"}
+
+    def test_salesman_can_be_updated(self, client_a):
+        client_a.post("/api/purchases/", purchase_payload(salesman_name="Bilal"))
+        salesman = Salesman.objects.get(name="Bilal")
+
+        res = client_a.patch(
+            f"/api/salesmen/{salesman.id}/",
+            {"name": "Bilal Khan", "salary": "45000.50", "contact": "03001234567"},
+        )
+
+        assert res.status_code == 200
+        salesman.refresh_from_db()
+        assert salesman.name == "Bilal Khan"
+        assert salesman.salary == Decimal("45000.50")
+        assert salesman.contact == "03001234567"
 
     def test_salesman_scoped_per_company_even_with_same_name(self, client_a, client_b):
         client_a.post("/api/purchases/", purchase_payload(salesman_name="Common Name"))

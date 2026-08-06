@@ -20,6 +20,7 @@ const icons = {
     stock: <PackageIcon />,
     profit: <TrendingUpIcon />,
     profile: <UserIcon />,
+    salesmen: <UserIcon />,
     contact: <MailIcon />,
     quotation: <FileTextIcon />,
 }
@@ -33,6 +34,7 @@ const mainNavItems = [
 
 const sidebarExtraItems = [
     { to: '/profile', label: 'Profile', key: 'profile' },
+    { to: '/salesmen', label: 'Salesmen', key: 'salesmen' },
     { to: '/contact', label: 'Contact us', key: 'contact' },
     { to: '/quotation', label: 'Make Quotations', key: 'quotation' },
 ]
@@ -40,6 +42,7 @@ const sidebarExtraItems = [
 const moreSheetItems = [
     { to: '/quotation', label: 'Make Quotations', key: 'quotation' },
     { to: '/profile', label: 'Profile', key: 'profile' },
+    { to: '/salesmen', label: 'Salesmen', key: 'salesmen' },
     { to: '/contact', label: 'Contact us', key: 'contact' },
 ]
 

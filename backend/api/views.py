@@ -123,6 +123,13 @@ class SalesmanListCreateView(generics.ListCreateAPIView):
         serializer.save(company=self.request.user)
 
 
+class SalesmanDetailView(generics.RetrieveUpdateAPIView):
+    serializer_class = SalesmanSerializer
+
+    def get_queryset(self):
+        return Salesman.objects.filter(company=self.request.user)
+
+
 class PartyListCreateView(generics.ListCreateAPIView):
     serializer_class = PartySerializer
 

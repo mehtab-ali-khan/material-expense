@@ -65,7 +65,7 @@ class ItemSerializer(serializers.ModelSerializer):
 class SalesmanSerializer(serializers.ModelSerializer):
     class Meta:
         model = Salesman
-        fields = ["id", "name"]
+        fields = ["id", "name", "salary", "contact"]
 
 
 class PartySerializer(serializers.ModelSerializer):
