@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import transaction
 from rest_framework import serializers
 
@@ -101,6 +103,12 @@ class PurchaseLineSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(required=False)
     item_name = serializers.CharField(write_only=True, required=False)
     size = serializers.CharField(write_only=True, required=False)
+    quantity = serializers.DecimalField(
+        max_digits=12, decimal_places=2, min_value=Decimal("0")
+    )
+    price = serializers.DecimalField(
+        max_digits=12, decimal_places=2, min_value=Decimal("0")
+    )
 
     class Meta:
         model = PurchaseItem
@@ -132,6 +140,12 @@ class SaleLineSerializer(serializers.ModelSerializer):
         max_digits=12, decimal_places=2, read_only=True
     )
     profit = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    quantity = serializers.DecimalField(
+        max_digits=12, decimal_places=2, min_value=Decimal("0")
+    )
+    sale_price = serializers.DecimalField(
+        max_digits=12, decimal_places=2, min_value=Decimal("0")
+    )
 
     class Meta:
         model = SaleItem
@@ -172,20 +186,30 @@ class PurchaseSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at"]
 
-    def _header(self, validated_data):
+    def _header(self, validated_data, instance=None):
         company = self.context["request"].user
-        salesman_name = (validated_data.pop("salesman_name", None) or "").strip()
-        salesman = None
-        if salesman_name:
-            salesman, _ = Salesman.objects.get_or_create(
-                company=company,
-                name__iexact=salesman_name,
-                defaults={"name": salesman_name},
-            )
+        salesman = instance.salesman if instance else None
+        if "salesman_name" in validated_data:
+            salesman_name = (validated_data.pop("salesman_name", None) or "").strip()
+            salesman = None
+            if salesman_name:
+                salesman, _ = Salesman.objects.get_or_create(
+                    company=company,
+                    name__iexact=salesman_name,
+                    defaults={"name": salesman_name},
+                )
 
-        party_name = validated_data.pop("party_name").strip()
-        party_contact = validated_data.pop("party_contact").strip()
-        # Prefer existing purchase-type party; create if missing
+        party_name = validated_data.pop("party_name", None)
+        party_contact = validated_data.pop("party_contact", None)
+        if party_name is None and instance:
+            party_name = instance.party.name
+        if party_contact is None and instance:
+            party_contact = instance.party.contact
+        if party_name is None or party_contact is None:
+            raise DRFValidationError("party_name and party_contact are required.")
+
+        party_name = party_name.strip()
+        party_contact = party_contact.strip()
         party = Party.objects.filter(
             company=company,
             name__iexact=party_name,
@@ -198,16 +222,15 @@ class PurchaseSerializer(serializers.ModelSerializer):
                 contact=party_contact,
                 party_type=Party.PARTY_TYPE_PURCHASE,
             )
-        else:
-            if party_contact and party_contact != party.contact:
-                party.contact = party_contact
-                party.save()
+        elif party_contact and party_contact != party.contact:
+            party.contact = party_contact
+            party.save(update_fields=["contact"])
         return company, party, salesman
 
     def create(self, validated_data):
         items = validated_data.pop("items")
-        company, party, salesman = self._header(validated_data)
         with transaction.atomic():
+            company, party, salesman = self._header(validated_data)
             purchase = Purchase.objects.create(
                 company=company,
                 party=party,
@@ -239,13 +262,16 @@ class PurchaseSerializer(serializers.ModelSerializer):
         return purchase
 
     def update(self, instance, validated_data):
-        items = validated_data.pop("items")
-        company, party, salesman = self._header(validated_data)
+        items = validated_data.pop("items", None)
         with transaction.atomic():
+            company, party, salesman = self._header(validated_data, instance=instance)
             instance.party = party
             instance.salesman = salesman
-            instance.date = validated_data["date"]
+            instance.date = validated_data.get("date", instance.date)
             instance.save(update_fields=["party", "salesman", "date"])
+
+            if items is None:
+                return instance
 
             existing_items = {
                 item.id: item
@@ -300,9 +326,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
             for old_item in existing_items.values():
                 if old_item.id not in submitted_ids:
                     try:
-                        old_item.variant.remove_purchase_effect(
-                            old_item.quantity, old_item.price
-                        )
+                        old_item.variant.remove_purchase_effect(old_item.quantity)
                     except DjangoValidationError as exc:
                         raise DRFValidationError(exc.message)
                     old_item.delete()
@@ -337,19 +361,30 @@ class SaleSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at"]
 
-    def create(self, validated_data):
+    def _header(self, validated_data, instance=None):
         company = self.context["request"].user
-        items = validated_data.pop("items")
-        salesman_name = (validated_data.pop("salesman_name", None) or "").strip()
-        salesman = None
-        if salesman_name:
-            salesman, _ = Salesman.objects.get_or_create(
-                company=company,
-                name__iexact=salesman_name,
-                defaults={"name": salesman_name},
-            )
-        party_name = validated_data.pop("party_name").strip()
-        party_contact = validated_data.pop("party_contact").strip()
+        salesman = instance.salesman if instance else None
+        if "salesman_name" in validated_data:
+            salesman_name = (validated_data.pop("salesman_name", None) or "").strip()
+            salesman = None
+            if salesman_name:
+                salesman, _ = Salesman.objects.get_or_create(
+                    company=company,
+                    name__iexact=salesman_name,
+                    defaults={"name": salesman_name},
+                )
+
+        party_name = validated_data.pop("party_name", None)
+        party_contact = validated_data.pop("party_contact", None)
+        if party_name is None and instance:
+            party_name = instance.party.name
+        if party_contact is None and instance:
+            party_contact = instance.party.contact
+        if party_name is None or party_contact is None:
+            raise DRFValidationError("party_name and party_contact are required.")
+
+        party_name = party_name.strip()
+        party_contact = party_contact.strip()
         party = Party.objects.filter(
             company=company,
             name__iexact=party_name,
@@ -362,13 +397,16 @@ class SaleSerializer(serializers.ModelSerializer):
                 contact=party_contact,
                 party_type=Party.PARTY_TYPE_SALE,
             )
-        else:
-            if party_contact and party_contact != party.contact:
-                party.contact = party_contact
-                party.save()
+        elif party_contact and party_contact != party.contact:
+            party.contact = party_contact
+            party.save(update_fields=["contact"])
+        return company, party, salesman
 
+    def create(self, validated_data):
+        items = validated_data.pop("items")
         try:
             with transaction.atomic():
+                company, party, salesman = self._header(validated_data)
                 sale = Sale.objects.create(
                     company=company,
                     party=party,
@@ -390,37 +428,20 @@ class SaleSerializer(serializers.ModelSerializer):
         return sale
 
     def update(self, instance, validated_data):
-        company = self.context["request"].user
-        items = validated_data.pop("items")
-        salesman_name = (validated_data.pop("salesman_name", None) or "").strip()
-        salesman = None
-        if salesman_name:
-            salesman, _ = Salesman.objects.get_or_create(
-                company=company,
-                name__iexact=salesman_name,
-                defaults={"name": salesman_name},
-            )
-        party_name = validated_data.pop("party_name").strip()
-        party_contact = validated_data.pop("party_contact").strip()
-        party = Party.objects.filter(
-            company=company,
-            name__iexact=party_name,
-            party_type=Party.PARTY_TYPE_SALE,
-        ).first()
-        if not party:
-            party = Party.objects.create(
-                company=company,
-                name=party_name,
-                contact=party_contact,
-                party_type=Party.PARTY_TYPE_SALE,
-            )
-        else:
-            if party_contact and party_contact != party.contact:
-                party.contact = party_contact
-                party.save()
-
+        items = validated_data.pop("items", None)
         try:
             with transaction.atomic():
+                company, party, salesman = self._header(
+                    validated_data, instance=instance
+                )
+                instance.party = party
+                instance.salesman = salesman
+                instance.date = validated_data.get("date", instance.date)
+                instance.save(update_fields=["party", "salesman", "date"])
+
+                if items is None:
+                    return instance
+
                 existing_items = {
                     item.id: item for item in instance.items.select_related("variant")
                 }
@@ -430,10 +451,6 @@ class SaleSerializer(serializers.ModelSerializer):
                 for old_item in existing_items.values():
                     old_item.variant.remove_sale_effect(old_item.quantity)
 
-                instance.party = party
-                instance.salesman = salesman
-                instance.date = validated_data["date"]
-                instance.save(update_fields=["party", "salesman", "date"])
                 submitted_ids = set()
                 for item_data in items:
                     variant = item_data["variant"]
@@ -473,12 +490,20 @@ class SaleSerializer(serializers.ModelSerializer):
         data["salesman_name"] = instance.salesman.name if instance.salesman else None
         data["party_name"] = instance.party.name if instance.party else None
         data["party_contact"] = instance.party.contact if instance.party else None
-        items = list(instance.items.all())
-        data["total_quantity"] = sum((item.quantity for item in items), 0)
-        data["total_sales"] = sum(
-            (item.quantity * item.sale_price for item in items), 0
+        items = data["items"]
+        data["total_quantity"] = sum(
+            (Decimal(str(item["quantity"])) for item in items), Decimal("0")
         )
-        data["profit"] = sum((item.profit for item in items), 0)
+        data["total_sales"] = sum(
+            (
+                Decimal(str(item["quantity"])) * Decimal(str(item["sale_price"]))
+                for item in items
+            ),
+            Decimal("0"),
+        )
+        data["profit"] = sum(
+            (Decimal(str(item["profit"])) for item in items), Decimal("0")
+        )
         return data
 
 

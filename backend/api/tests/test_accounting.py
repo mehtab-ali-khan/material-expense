@@ -135,6 +135,28 @@ class TestPurchaseIncreasesStockAndAveragePrice:
         )
         assert ItemVariant.objects.filter(item__company__name="Alpha Traders").count() == 1
 
+    def test_negative_purchase_quantity_is_rejected(
+        self, client_a, make_purchase_payload
+    ):
+        res = client_a.post(
+            "/api/purchases/",
+            make_purchase_payload(quantity="-1000", price="10"),
+        )
+
+        assert res.status_code == 400
+        assert ItemVariant.objects.count() == 0
+
+    def test_negative_purchase_price_is_rejected(
+        self, client_a, make_purchase_payload
+    ):
+        res = client_a.post(
+            "/api/purchases/",
+            make_purchase_payload(quantity="10", price="-1"),
+        )
+
+        assert res.status_code == 400
+        assert ItemVariant.objects.count() == 0
+
 
 class TestSaleDecreasesStockAndBlocksOversell:
     def test_sale_decrements_stock(
@@ -198,9 +220,75 @@ class TestSaleDecreasesStockAndBlocksOversell:
         self, comp_a, variant_factory
     ):
         variant = variant_factory(comp_a, name="Direct Model Item")
-        variant.record_purchase(Decimal("3"), Decimal("10"))
+        variant.record_purchase(Decimal("3"))
         with pytest.raises(ValidationError):
             variant.record_sale(Decimal("4"))
+
+    def test_negative_sale_quantity_is_rejected(
+        self, client_a, make_purchase_payload, make_sale_payload
+    ):
+        client_a.post(
+            "/api/purchases/", make_purchase_payload(quantity="10", price="100")
+        )
+        variant = ItemVariant.objects.get(item__name="Steel Rod")
+
+        res = client_a.post(
+            "/api/sales/",
+            make_sale_payload(variant.id, quantity="-5", sale_price="100"),
+        )
+
+        assert res.status_code == 400
+        variant.refresh_from_db()
+        assert variant.current_stock_qty == Decimal("10")
+        assert SaleItem.objects.count() == 0
+
+    def test_negative_sale_price_is_rejected(
+        self, client_a, make_purchase_payload, make_sale_payload
+    ):
+        client_a.post(
+            "/api/purchases/", make_purchase_payload(quantity="10", price="100")
+        )
+        variant = ItemVariant.objects.get(item__name="Steel Rod")
+
+        res = client_a.post(
+            "/api/sales/",
+            make_sale_payload(variant.id, quantity="5", sale_price="-1"),
+        )
+
+        assert res.status_code == 400
+        variant.refresh_from_db()
+        assert variant.current_stock_qty == Decimal("10")
+        assert SaleItem.objects.count() == 0
+
+    def test_duplicate_variant_lines_are_aggregated_for_oversell(
+        self, client_a, make_purchase_payload, make_sale_payload
+    ):
+        client_a.post(
+            "/api/purchases/", make_purchase_payload(quantity="10", price="100")
+        )
+        variant = ItemVariant.objects.get(item__name="Steel Rod")
+        payload = make_sale_payload(variant.id, quantity="8", sale_price="150")
+        payload["items"].append(
+            {"variant": variant.id, "quantity": "8", "sale_price": "150"}
+        )
+
+        res = client_a.post("/api/sales/", payload)
+
+        assert res.status_code == 400
+        variant.refresh_from_db()
+        assert variant.current_stock_qty == Decimal("10")
+        assert SaleItem.objects.count() == 0
+
+    def test_model_level_record_purchase_rejects_negative_quantity(
+        self, comp_a, variant_factory
+    ):
+        variant = variant_factory(comp_a, name="Direct Purchase Guard")
+
+        with pytest.raises(ValidationError):
+            variant.record_purchase(Decimal("-1"))
+
+        variant.refresh_from_db()
+        assert variant.current_stock_qty == Decimal("0")
 
 
 class TestProfitCalculation:

@@ -15,6 +15,7 @@ from .models import (
     ItemVariant,
     Purchase,
     Sale,
+    SaleItem,
 )
 from .models import normalize_phone
 
@@ -171,7 +172,17 @@ class PurchaseListCreateView(generics.ListCreateAPIView):
     serializer_class = PurchaseSerializer
 
     def get_queryset(self):
-        qs = Purchase.objects.filter(company=self.request.user).order_by("-created_at")
+        qs = (
+            Purchase.objects.filter(company=self.request.user)
+            .select_related("party", "salesman")
+            .prefetch_related(
+                Prefetch(
+                    "items",
+                    queryset=PurchaseItem.objects.select_related("variant__item"),
+                )
+            )
+            .order_by("-created_at")
+        )
 
         date = self.request.query_params.get("date")
         date_from = self.request.query_params.get("date_from")
@@ -209,14 +220,33 @@ class PurchaseDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = PurchaseSerializer
 
     def get_queryset(self):
-        return Purchase.objects.filter(company=self.request.user)
+        return (
+            Purchase.objects.filter(company=self.request.user)
+            .select_related("party", "salesman")
+            .prefetch_related(
+                Prefetch(
+                    "items",
+                    queryset=PurchaseItem.objects.select_related("variant__item"),
+                )
+            )
+        )
 
 
 class SaleListCreateView(generics.ListCreateAPIView):
     serializer_class = SaleSerializer
 
     def get_queryset(self):
-        qs = Sale.objects.filter(company=self.request.user).order_by("-created_at")
+        qs = (
+            Sale.objects.filter(company=self.request.user)
+            .select_related("party", "salesman")
+            .prefetch_related(
+                Prefetch(
+                    "items",
+                    queryset=SaleItem.objects.select_related("variant__item"),
+                )
+            )
+            .order_by("-created_at")
+        )
 
         date = self.request.query_params.get("date")
         date_from = self.request.query_params.get("date_from")
@@ -254,7 +284,16 @@ class SaleDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = SaleSerializer
 
     def get_queryset(self):
-        return Sale.objects.filter(company=self.request.user)
+        return (
+            Sale.objects.filter(company=self.request.user)
+            .select_related("party", "salesman")
+            .prefetch_related(
+                Prefetch(
+                    "items",
+                    queryset=SaleItem.objects.select_related("variant__item"),
+                )
+            )
+        )
 
 
 class ContactMessageCreateView(generics.CreateAPIView):

@@ -164,15 +164,37 @@ class TestPurchaseAdd:
         assert ItemVariant.objects.filter(item__company=comp_a, item__name="Steel Rod", size="20ft").count() == 1
         assert variant_for(comp_a).current_stock_qty == Decimal("12")
 
-    @pytest.mark.parametrize("field,value", [("quantity", "0"), ("quantity", "-1")])
-    def test_purchase_zero_or_negative_quantity_allowed_by_current_serializer(self, client_a, field, value):
-        response = post_json(client_a, "/api/purchases/", purchase_payload([purchase_line(**{field: value})]))
+    def test_purchase_zero_quantity_allowed(self, client_a):
+        response = post_json(
+            client_a,
+            "/api/purchases/",
+            purchase_payload([purchase_line(quantity="0")]),
+        )
         assert response.status_code == 201
 
-    @pytest.mark.parametrize("value", ["0", "-1"])
-    def test_purchase_zero_or_negative_price_allowed_by_current_serializer(self, client_a, value):
-        response = post_json(client_a, "/api/purchases/", purchase_payload([purchase_line(price=value)]))
+    def test_purchase_negative_quantity_rejected(self, client_a):
+        response = post_json(
+            client_a,
+            "/api/purchases/",
+            purchase_payload([purchase_line(quantity="-1")]),
+        )
+        assert response.status_code == 400
+
+    def test_purchase_zero_price_allowed(self, client_a):
+        response = post_json(
+            client_a,
+            "/api/purchases/",
+            purchase_payload([purchase_line(price="0")]),
+        )
         assert response.status_code == 201
+
+    def test_purchase_negative_price_rejected(self, client_a):
+        response = post_json(
+            client_a,
+            "/api/purchases/",
+            purchase_payload([purchase_line(price="-1")]),
+        )
+        assert response.status_code == 400
 
     @pytest.mark.parametrize("missing", ["date", "party_name", "party_contact"])
     def test_purchase_missing_required_header_rejected(self, client_a, missing):
@@ -232,15 +254,37 @@ class TestSaleAdd:
         assert response.status_code == 201
         assert response.data["items"][0]["cost_price_at_sale"] == "100.00"
 
-    @pytest.mark.parametrize("field,value", [("quantity", "0"), ("quantity", "-1")])
-    def test_sale_zero_or_negative_quantity_allowed_by_current_serializer(self, client_a, comp_a, field, value):
+    def test_sale_zero_quantity_allowed(self, client_a, comp_a):
         variant = self.stocked_variant(client_a, comp_a)
-        assert post_json(client_a, "/api/sales/", sale_payload([sale_line(variant.id, **{field: value})])).status_code == 201
+        assert post_json(
+            client_a,
+            "/api/sales/",
+            sale_payload([sale_line(variant.id, quantity="0")]),
+        ).status_code == 201
 
-    @pytest.mark.parametrize("value", ["0", "-1"])
-    def test_sale_zero_or_negative_price_allowed_by_current_serializer(self, client_a, comp_a, value):
+    def test_sale_negative_quantity_rejected(self, client_a, comp_a):
         variant = self.stocked_variant(client_a, comp_a)
-        assert post_json(client_a, "/api/sales/", sale_payload([sale_line(variant.id, sale_price=value)])).status_code == 201
+        assert post_json(
+            client_a,
+            "/api/sales/",
+            sale_payload([sale_line(variant.id, quantity="-1")]),
+        ).status_code == 400
+
+    def test_sale_zero_price_allowed(self, client_a, comp_a):
+        variant = self.stocked_variant(client_a, comp_a)
+        assert post_json(
+            client_a,
+            "/api/sales/",
+            sale_payload([sale_line(variant.id, sale_price="0")]),
+        ).status_code == 201
+
+    def test_sale_negative_price_rejected(self, client_a, comp_a):
+        variant = self.stocked_variant(client_a, comp_a)
+        assert post_json(
+            client_a,
+            "/api/sales/",
+            sale_payload([sale_line(variant.id, sale_price="-1")]),
+        ).status_code == 400
 
 
 class TestPurchaseEdit:

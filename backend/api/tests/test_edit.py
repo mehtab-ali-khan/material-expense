@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from api.models import ItemVariant, PurchaseItem, SaleItem
+from api.models import ItemVariant, Party, PurchaseItem, SaleItem, Salesman
 
 pytestmark = pytest.mark.django_db
 
@@ -55,6 +55,84 @@ def sale_patch(response, **line_overrides):
 
 
 class TestPurchaseEdit:
+    def test_multiline_edit_to_same_variant_preserves_all_stock(
+        self, client_a, make_purchase_payload
+    ):
+        payload = make_purchase_payload(
+            item_name="Rod", size="20ft", quantity="5", price="10"
+        )
+        payload["items"].append(
+            {"item_name": "Cement", "size": "50kg", "quantity": "5", "price": "20"}
+        )
+        created = client_a.post("/api/purchases/", payload, format="json")
+        line1, line2 = created.data["items"]
+
+        edit_payload = {
+            "items": [
+                {
+                    "id": line1["id"],
+                    "item_name": "Cement",
+                    "size": "50kg",
+                    "quantity": "8",
+                    "price": "20",
+                },
+                {
+                    "id": line2["id"],
+                    "item_name": "Cement",
+                    "size": "50kg",
+                    "quantity": "6",
+                    "price": "20",
+                },
+            ],
+            "date": created.data["date"],
+            "salesman_name": created.data.get("salesman_name") or "",
+            "party_name": created.data["party_name"],
+            "party_contact": created.data["party_contact"],
+        }
+
+        res = client_a.patch(
+            f"/api/purchases/{created.data['id']}/", edit_payload, format="json"
+        )
+
+        assert res.status_code == 200
+        rod = ItemVariant.objects.get(item__name="Rod", price=Decimal("10"))
+        cement = ItemVariant.objects.get(item__name="Cement", price=Decimal("20"))
+        assert rod.current_stock_qty == Decimal("0")
+        assert cement.current_stock_qty == Decimal("14")
+
+    def test_partial_patch_can_update_date_without_items(
+        self, client_a, make_purchase_payload
+    ):
+        created = client_a.post(
+            "/api/purchases/", make_purchase_payload(), format="json"
+        )
+
+        res = client_a.patch(
+            f"/api/purchases/{created.data['id']}/",
+            {"date": "2026-02-01"},
+            format="json",
+        )
+
+        assert res.status_code == 200
+        assert res.data["date"] == "2026-02-01"
+        assert len(res.data["items"]) == 1
+
+    def test_header_creation_rolls_back_when_purchase_items_fail(
+        self, client_a, comp_a, make_purchase_payload
+    ):
+        payload = make_purchase_payload(
+            salesman_name="NewGuy",
+            party_name="NewSupplier",
+            party_contact="923001119999",
+        )
+        del payload["items"][0]["item_name"]
+
+        res = client_a.post("/api/purchases/", payload, format="json")
+
+        assert res.status_code == 400
+        assert not Salesman.objects.filter(company=comp_a, name="NewGuy").exists()
+        assert not Party.objects.filter(company=comp_a, name="NewSupplier").exists()
+
     def test_increasing_quantity_increases_stock_correctly(self, client_a, make_purchase_payload, make_sale_payload):
         created = client_a.post("/api/purchases/", make_purchase_payload(quantity="100", price="10"), format="json")
         variant = ItemVariant.objects.get(item__name="Steel Rod", price=Decimal("10"))
@@ -197,6 +275,59 @@ class TestSaleEdit:
         assert res.status_code == 200
         variant.refresh_from_db()
         assert variant.current_stock_qty == Decimal("30")
+
+    def test_replacing_line_with_new_line_on_same_variant_uses_restored_stock(
+        self, client_a, make_purchase_payload, make_sale_payload
+    ):
+        sale, variant = self.create_sale(
+            client_a,
+            make_purchase_payload,
+            make_sale_payload,
+            purchase_quantity="7",
+            sale_quantity="5",
+        )
+        payload = sale_patch(sale)
+        payload["items"] = [
+            {"variant": variant.id, "quantity": "3", "sale_price": "20"}
+        ]
+
+        res = client_a.patch(f"/api/sales/{sale.data['id']}/", payload, format="json")
+
+        assert res.status_code == 200
+        variant.refresh_from_db()
+        assert variant.current_stock_qty == Decimal("4")
+
+    def test_partial_patch_can_update_date_without_items(
+        self, client_a, make_purchase_payload, make_sale_payload
+    ):
+        sale, _ = self.create_sale(client_a, make_purchase_payload, make_sale_payload)
+
+        res = client_a.patch(
+            f"/api/sales/{sale.data['id']}/",
+            {"date": "2026-02-01"},
+            format="json",
+        )
+
+        assert res.status_code == 200
+        assert res.data["date"] == "2026-02-01"
+        assert len(res.data["items"]) == 1
+
+    def test_header_creation_rolls_back_when_sale_items_fail(
+        self, client_a, comp_a, comp_b, variant_factory, make_sale_payload
+    ):
+        other_variant = variant_factory(comp_b, name="Other Company Item")
+        payload = make_sale_payload(
+            other_variant.id,
+            salesman_name="NewSeller",
+            party_name="NewBuyer",
+            party_contact="923002229999",
+        )
+
+        res = client_a.post("/api/sales/", payload, format="json")
+
+        assert res.status_code == 400
+        assert not Salesman.objects.filter(company=comp_a, name="NewSeller").exists()
+        assert not Party.objects.filter(company=comp_a, name="NewBuyer").exists()
 
     def test_decreasing_sale_quantity_increases_stock_correctly(self, client_a, make_purchase_payload, make_sale_payload):
         sale, variant = self.create_sale(client_a, make_purchase_payload, make_sale_payload)

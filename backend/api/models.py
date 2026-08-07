@@ -173,51 +173,91 @@ class ItemVariant(models.Model):
     def __str__(self):
         return f"{self.item.name} ({self.size} @ {self.price})"
 
-    def record_purchase(self, quantity, price=None):
+    def _locked_self(self):
+        return type(self).objects.select_for_update().get(pk=self.pk)
+
+    @staticmethod
+    def _validate_non_negative_quantity(quantity):
+        if quantity < 0:
+            raise ValidationError("Quantity cannot be negative.")
+
+    def _sync_stock_from(self, variant):
+        self.current_stock_qty = variant.current_stock_qty
+
+    def record_purchase(self, quantity):
         """Add purchased quantity to this price-locked variant."""
-        self.current_stock_qty += quantity
-        self.save()
+        self._validate_non_negative_quantity(quantity)
+        with transaction.atomic():
+            variant = self._locked_self()
+            new_stock = variant.current_stock_qty + quantity
+            if new_stock < 0:
+                raise ValidationError("Stock cannot be negative.")
+            variant.current_stock_qty = new_stock
+            variant.save(update_fields=["current_stock_qty"])
+        self._sync_stock_from(variant)
 
     def record_sale(self, quantity):
-        if quantity > self.current_stock_qty:
-            raise ValidationError("Cannot sell more than available stock.")
-        self.current_stock_qty -= quantity
-        self.save()
+        self._validate_non_negative_quantity(quantity)
+        with transaction.atomic():
+            variant = self._locked_self()
+            if quantity > variant.current_stock_qty:
+                raise ValidationError("Cannot sell more than available stock.")
+            variant.current_stock_qty -= quantity
+            variant.save(update_fields=["current_stock_qty"])
+        self._sync_stock_from(variant)
 
     def adjust_purchase(self, old_quantity, new_quantity):
         """Net-delta quantity edit on a purchase line staying on this same
         (item, size, price) variant. Price/size/item changes are handled by
         moving off this variant instead (see remove_purchase_effect)."""
-        new_stock = self.current_stock_qty - old_quantity + new_quantity
-        if new_stock < 0:
-            sold_stock = old_quantity - self.current_stock_qty
-            raise ValidationError(
-                f"Quantity cannot be less than the sold stock {sold_stock}. Adjust the related sales first."
-            )
-        self.current_stock_qty = new_stock
-        self.save()
+        self._validate_non_negative_quantity(old_quantity)
+        self._validate_non_negative_quantity(new_quantity)
+        with transaction.atomic():
+            variant = self._locked_self()
+            new_stock = variant.current_stock_qty - old_quantity + new_quantity
+            if new_stock < 0:
+                sold_stock = old_quantity - variant.current_stock_qty
+                raise ValidationError(
+                    f"Quantity cannot be less than the sold stock {sold_stock}. Adjust the related sales first."
+                )
+            variant.current_stock_qty = new_stock
+            variant.save(update_fields=["current_stock_qty"])
+        self._sync_stock_from(variant)
 
     def adjust_sale(self, old_quantity, new_quantity):
-        new_stock = self.current_stock_qty + old_quantity - new_quantity
-        if new_stock < 0:
-            raise ValidationError("Cannot sell more than available stock.")
-        self.current_stock_qty = new_stock
-        self.save()
+        self._validate_non_negative_quantity(old_quantity)
+        self._validate_non_negative_quantity(new_quantity)
+        with transaction.atomic():
+            variant = self._locked_self()
+            new_stock = variant.current_stock_qty + old_quantity - new_quantity
+            if new_stock < 0:
+                raise ValidationError("Cannot sell more than available stock.")
+            variant.current_stock_qty = new_stock
+            variant.save(update_fields=["current_stock_qty"])
+        self._sync_stock_from(variant)
 
-    def remove_purchase_effect(self, quantity, price=None):
+    def remove_purchase_effect(self, quantity):
         """Undo the stock effect of one purchase line. Used when a purchase
         line's item/size/price changes on edit (moving off this variant)."""
-        new_quantity = self.current_stock_qty - quantity
-        if new_quantity < 0:
-            raise ValidationError(
-                f"This purchase has already {abs(new_quantity)} sold stock. Adjust the related sales first."
-            )
-        self.current_stock_qty -= quantity
-        self.save()
+        self._validate_non_negative_quantity(quantity)
+        with transaction.atomic():
+            variant = self._locked_self()
+            new_quantity = variant.current_stock_qty - quantity
+            if new_quantity < 0:
+                raise ValidationError(
+                    f"This purchase has already {abs(new_quantity)} sold stock. Adjust the related sales first."
+                )
+            variant.current_stock_qty = new_quantity
+            variant.save(update_fields=["current_stock_qty"])
+        self._sync_stock_from(variant)
 
     def remove_sale_effect(self, quantity):
-        self.current_stock_qty += quantity
-        self.save()
+        self._validate_non_negative_quantity(quantity)
+        with transaction.atomic():
+            variant = self._locked_self()
+            variant.current_stock_qty += quantity
+            variant.save(update_fields=["current_stock_qty"])
+        self._sync_stock_from(variant)
 
     def is_orphaned(self, exclude_purchase_id=None, exclude_sale_id=None):
         purchases_qs = self.purchases.all()
@@ -263,9 +303,11 @@ class PurchaseItem(models.Model):
     @transaction.atomic
     def save(self, *args, **kwargs):
         is_new = self._state.adding
+        if self.price != self.variant.price:
+            raise ValidationError("Purchase item price must match variant price.")
         super().save(*args, **kwargs)
         if is_new:
-            self.variant.record_purchase(self.quantity, self.price)
+            self.variant.record_purchase(self.quantity)
 
     def __str__(self):
         return f"Purchase item: {self.variant} x {self.quantity} @ {self.price}"
